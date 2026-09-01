@@ -1,6 +1,5 @@
 // scratch.ts — run with: npx tsx scratch.ts, then delete it
 
-
 // to check superbase connection
 {/*import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
@@ -10,8 +9,3 @@ const { data, error } = await db.from('_nonexistent').select('*')
 console.log({ data, error })*/}
 
 // to check whole env
-import 'dotenv/config'
-function required(name: string): string(
-    const value = process.env[name]
-    if (!value) throw new Error(`missing required environment variables: ${name}`)
-)
