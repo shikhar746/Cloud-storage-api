@@ -22,7 +22,8 @@ app.use('/api/auth', authRoutes)
 //--------->Folder routes<------------//
 app.use('/api/folders', folderRoutes)
 
-
+// ---------> Files routes <--------- //
+app.use("/api/files", fileRoutes)
 
 
 export default app

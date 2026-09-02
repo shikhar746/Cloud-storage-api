@@ -10,7 +10,7 @@ const base = {
 }
 
 export function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
-  res.cookie('accessToken', accessToken, { ...base, maxAge: 15 * 60 * 1000 })
+  res.cookie('accessToken', accessToken, { ...base, maxAge: 60 * 60 * 1000 })
   res.cookie('refreshToken', refreshToken, {
     ...base,
     path: '/api/auth/refresh',
@@ -18,7 +18,7 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
   })
 }
 
-export function clearAuthCookies(res: Response  ){
-    res.clearCookie('accessToken')
-    res.clearCookie('refreshToken',{path:'/api/auth/refresh'})
+export function clearAuthCookies(res: Response) {
+  res.clearCookie("accessToken", { path: "/" })
+  res.clearCookie("refreshToken", { path: "/api/auth/refresh" })
 }

@@ -121,6 +121,13 @@ export async function getRootController(req: Request, res: Response){
         .eq("owner_id", req.userId)
         .eq("is_deleted", false)
 
+    if (filesError || foldersError) {
+        console.error("list root failed", filesError, foldersError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to load root" },
+        })
+    }
+
     return res.status(200).json({
         folder: null,
         children: {folders, files},

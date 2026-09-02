@@ -6,10 +6,10 @@ const router = express.Router()
 //create a new folder
 router.post('/', requireAuth, createFolderController)
 
-//get a folder
-router.get('/:id', requireAuth, getFolderController)
-
 //get root folder
 router.get('/root', requireAuth, getRootController)
+
+//get a folder
+router.get('/:id', requireAuth, getFolderController)
 
 export default router

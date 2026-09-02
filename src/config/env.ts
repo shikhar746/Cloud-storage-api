@@ -34,6 +34,7 @@ export const env = {
     // auth
     JWT_SECRET: required('JWT_SECRET'),
     REFRESH_SECRET: required('REFRESH_SECRET'),
+    // ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL ?? '15m',
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),

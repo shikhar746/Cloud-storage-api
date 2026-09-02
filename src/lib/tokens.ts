@@ -9,7 +9,7 @@ export interface payload{
 }
 
 export function signAccessToken(userId: string) {
-    return jwt.sign({sub: userId}, env.JWT_SECRET, {expiresIn: '15m'})
+    return jwt.sign({sub: userId}, env.JWT_SECRET, {expiresIn: '1h'})
 }
 
 export function signRefreshToken(userId: string){
