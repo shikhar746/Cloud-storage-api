@@ -25,5 +25,11 @@ app.use('/api/folders', folderRoutes)
 // ---------> Files routes <--------- //
 app.use("/api/files", fileRoutes)
 
+app.use((_req, res) => {
+    res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Route not found' },
+    })
+})  
+
 app.use(errorHandler)
 export default app
