@@ -148,7 +148,7 @@ export async function listFileController (req: Request, res: Response){
 
   let query = supabase
     .from("files")
-    .select("id, name, mime_type, size_bytes, created_at")
+    .select("id, name, mime_type, size_bytes, folder_id, created_at")
     .eq("owner_id", req.userId)
     .eq("is_deleted", false)
     .order("created_at", { ascending: false })

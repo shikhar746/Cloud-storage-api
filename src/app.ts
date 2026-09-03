@@ -9,9 +9,10 @@ import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 
+app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
+
 //--------->Auth routes<------------//
 
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
 app.get('/', (_req, res) => {

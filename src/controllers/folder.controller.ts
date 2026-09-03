@@ -133,3 +133,109 @@ export async function getRootController(req: Request, res: Response){
         children: {folders, files},
     })
 }
+
+export async function deleteFolderController(req:Request, res:Response){
+    const {id} = req.params
+
+    const { data: folder, error: folderError } = await supabase
+        .from("folders")
+        .update({ is_deleted: true })
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", false)
+        .select("id")
+        .single()
+
+    if (folderError || !folder)
+        return res.status(404).json({
+            error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+        })
+    const allFolderIds = [id]
+    let currentLevel = [id]
+
+    while (currentLevel.length > 0) {
+        const { data: children, error: childError } = await supabase
+            .from("folders")
+            .select("id")
+            .in("parent_id", currentLevel)
+            .eq("owner_id", req.userId)
+            .eq("is_deleted", false)
+
+        if (childError) {
+            console.error("cascade lookup failed", childError)
+            return res.status(500).json({
+                error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+            })
+        }
+
+        currentLevel = children.map(c => c.id)
+        allFolderIds.push(...currentLevel)
+    }
+
+    await supabase
+        .from("folders")
+        .update({ is_deleted: true })
+        .in("id", allFolderIds)
+        .eq("owner_id", req.userId)
+
+    await supabase
+        .from("files")
+        .update({ is_deleted: true })
+        .in("folder_id", allFolderIds)
+        .eq("owner_id", req.userId)
+
+    return res.status(204).send()
+}
+
+export async function restoreFolderController(req:Request, res:Response){
+    const {id} = req.params
+
+    const { data: folder, error: folderError } = await supabase
+        .from("folders")
+        .update({ is_deleted: false })
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+        .select("id")
+        .single()
+
+    if (folderError || !folder)
+        return res.status(404).json({
+            error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+        })
+    const allFolderIds = [id]
+    let currentLevel = [id]
+
+    while (currentLevel.length > 0) {
+        const { data: children, error: childError } = await supabase
+            .from("folders")
+            .select("id")
+            .in("parent_id", currentLevel)
+            .eq("owner_id", req.userId)
+            .eq("is_deleted", true)
+
+        if (childError) {
+            console.error("cascade lookup failed", childError)
+            return res.status(500).json({
+                error: { code: "INTERNAL_ERROR", message: "Failed to restore folder" },
+            })
+        }
+
+        currentLevel = children.map(c => c.id)
+        allFolderIds.push(...currentLevel)
+    }
+
+    await supabase
+        .from("folders")
+        .update({ is_deleted: false })
+        .in("id", allFolderIds)
+        .eq("owner_id", req.userId)
+
+    await supabase
+        .from("files")
+        .update({ is_deleted: false })
+        .in("folder_id", allFolderIds)
+        .eq("owner_id", req.userId)
+
+    return res.status(204).send()
+}
