@@ -87,3 +87,38 @@ export async function uploadFileController(req: Request, res: Response) {
 
   return res.status(201).json({ file })
 }
+
+export async function getFileController(req:Request, res: Response){
+    const { id }= req.params
+
+    const {data: file, error: fileError } = await supabase
+        .from("files")
+        .select("id, name, mime_type, size_bytes, storage_key, folder_id, created_at")
+        .eq("id", id)
+        .eq("owner_id", req.userId)//doing the authorization part
+        .eq("is_deleted", false)
+        .single()
+
+    if(fileError|| !file)
+        return res.status(404).json({
+            error: {code : "FILE_NOT_FOUND", message: "File not found"}
+        })
+
+     const { data: signed, error: signedError } = await supabase.storage
+    .from(env.SUPABASE_STORAGE_BUCKET)
+    .createSignedUrl(file.storage_key, 60 * 60)
+
+    if (signedError || !signed) {
+        console.error("sign url failed", signedError, file.storage_key)
+        return res.status(404).json({
+        error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+    }   
+
+    const { storage_key, ...safeFile } = file
+
+    return res.status(200).json({
+        file: safeFile,
+        signedUrl: signed.signedUrl,
+    })
+}

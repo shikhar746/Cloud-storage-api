@@ -2,10 +2,10 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { env } from './config/env.js'
-
 import authRoutes from './routes/auth.routes.js'
 import folderRoutes from './routes/folder.routes.js'
 import fileRoutes from './routes/file.routes.js'
+import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 
@@ -25,5 +25,5 @@ app.use('/api/folders', folderRoutes)
 // ---------> Files routes <--------- //
 app.use("/api/files", fileRoutes)
 
-
+app.use(errorHandler)
 export default app
