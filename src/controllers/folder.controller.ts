@@ -139,11 +139,10 @@ export async function deleteFolderController(req:Request, res:Response){
 
     const { data: folder, error: folderError } = await supabase
         .from("folders")
-        .update({ is_deleted: true })
+        .select("id")
         .eq("id", id)
         .eq("owner_id", req.userId)
         .eq("is_deleted", false)
-        .select("id")
         .single()
 
     if (folderError || !folder)
@@ -257,7 +256,7 @@ export async function restoreFolderController(req:Request, res:Response){
     if (filesUpdateError) {
         console.error("cascade folder update failed", filesUpdateError)
         return res.status(500).json({
-            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+            error: { code: "INTERNAL_ERROR", message: "Failed to restore folder" },
         })
     }
 
