@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { supabase } from '../lib/supabase.js'
 import { env } from '../config/env.js'
-import { uploadFileSchema } from '../schemas/file.schema.js'
+import { uploadFileSchema, updateFileSchema } from '../schemas/file.schema.js'
 
 export async function uploadFileController(req: Request, res: Response) {
   // 1. multer puts the file here — no file means nothing to do
@@ -158,11 +158,59 @@ export async function listFileController (req: Request, res: Response){
     : query.is("folder_id", null)
 
   const {data:files, error} = await query
-  
+
   if(error)
     return res.status(500).json({
       error: { code: "INTERNAL_ERROR", message: "Failed to list files" },
     })
   
   return res.status(200).json({ files })
+}
+
+export async function updateFileController(req: Request, res: Response) {
+    const { id } = req.params
+
+    // parse and validate the body first
+    const { success, error, data:rawdata } = updateFileSchema.safeParse(req.body)
+    if (!success) {
+        return res.status(400).json({
+            error: { code: "VALIDATION_ERROR", issues: error.issues },
+        })
+    }
+
+    if (rawdata.folderId) {
+      const { data: folder, error: folderError } = await supabase
+          .from("folders")
+          .select("id")
+          .eq("id", rawdata.folderId)
+          .eq("owner_id", req.userId)
+          .eq("is_deleted", false)
+          .single()
+
+      if (folderError || !folder) {
+          return res.status(404).json({
+              error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+          })
+      }
+    }
+
+    const updates: Record<string, unknown> = {}
+    if (rawdata.name !== undefined) updates.name = rawdata.name
+    if (rawdata.folderId !== undefined) updates.folder_id = rawdata.folderId
+
+    const { data: file, error: fileError } = await supabase
+        .from("files")
+        .update(updates)
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", false)
+        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .single()
+
+    if (fileError || !file)
+        return res.status(404).json({
+            error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+
+    return res.status(200).json({ file })
 }
