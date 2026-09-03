@@ -122,3 +122,47 @@ export async function getFileController(req:Request, res: Response){
         signedUrl: signed.signedUrl,
     })
 }
+
+export async function deleteFileController(req: Request, res: Response) {
+    const { id } = req.params
+
+    const { data: file, error: fileError } = await supabase
+        .from("files")
+        .update({ is_deleted: true })
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", false)
+        .select("id")
+        .single()
+
+    if (fileError || !file)
+        return res.status(404).json({
+            error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+
+    return res.status(204).send()
+}
+
+export async function listFileController (req: Request, res: Response){
+  const {folderId} = req.query
+
+  let query = supabase
+    .from("files")
+    .select("id, name, mime_type, size_bytes, created_at")
+    .eq("owner_id", req.userId)
+    .eq("is_deleted", false)
+    .order("created_at", { ascending: false })
+
+  query = folderId  
+    ? query.eq("folder_id", folderId)
+    : query.is("folder_id", null)
+
+  const {data:files, error} = await query
+  
+  if(error)
+    return res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "Failed to list files" },
+    })
+  
+  return res.status(200).json({ files })
+}
