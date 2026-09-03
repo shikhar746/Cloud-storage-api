@@ -1,8 +1,6 @@
 import type { Request, Response } from "express";
-import { createFolderSchema } from "../schemas/folder.schema.js";
+import { createFolderSchema, updateFolderSchema } from "../schemas/folder.schema.js";
 import { supabase } from "../lib/supabase.js";
-
-
 
 export async function createFolderController(req:Request, res:Response){
     const { success, error, data } = createFolderSchema.safeParse(req.body)
@@ -285,4 +283,158 @@ export async function restoreFolderController(req:Request, res:Response){
     }
 
     return res.status(204).send()
+}
+
+export async function getTrashController(req: Request, res: Response) {
+    const { data: folders, error: foldersError } = await supabase
+        .from("folders")
+        .select("id, name, parent_id, created_at")
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+
+    if (foldersError) {
+        console.error("list trash folders failed", foldersError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to load trash" },
+        })
+    }
+
+    const { data: files, error: filesError } = await supabase
+        .from("files")
+        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+
+    if (filesError) {
+        console.error("list trash files failed", filesError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to load trash" },
+        })
+    }
+
+    // anything whose parent is also deleted got here by cascade — hide it
+    const deletedFolderIds = new Set(folders.map(f => f.id))
+
+    const topLevelFolders = folders.filter(
+        f => f.parent_id === null || !deletedFolderIds.has(f.parent_id)
+    )
+
+    const topLevelFiles = files.filter(
+        f => f.folder_id === null || !deletedFolderIds.has(f.folder_id)
+    )
+
+    return res.status(200).json({
+        folders: topLevelFolders,
+        files: topLevelFiles,
+    })
+}
+
+export async function updateFolderController(req: Request, res: Response) {
+    const { id } = req.params
+
+    const { success, error, data } = updateFolderSchema.safeParse(req.body)
+    if (!success) {
+        return res.status(400).json({
+            error: { code: "VALIDATION_ERROR", issues: error.issues },
+        })
+    }
+
+    // folder must exist and be ours
+    const { data: existing, error: existingError } = await supabase
+        .from("folders")
+        .select("id")
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", false)
+        .single()
+
+    if (existingError || !existing) {
+        return res.status(404).json({
+            error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+        })
+    }
+
+    // only validate the destination when the folder is actually moving
+    if (data.parentId) {
+        if (data.parentId === id) {
+            return res.status(400).json({
+                error: { code: "INVALID_MOVE", message: "Cannot move a folder into itself" },
+            })
+        }
+
+        const { data: parent, error: parentError } = await supabase
+            .from("folders")
+            .select("id")
+            .eq("id", data.parentId)
+            .eq("owner_id", req.userId)
+            .eq("is_deleted", false)
+            .single()
+
+        if (parentError || !parent) {
+            return res.status(404).json({
+                error: { code: "PARENT_NOT_FOUND", message: "Parent folder not found" },
+            })
+        }
+
+        // walk down from this folder — if the destination is somewhere below it,
+        // the move would create a cycle
+        let currentLevel = [id]
+
+        while (currentLevel.length > 0) {
+            const { data: children, error: childError } = await supabase
+                .from("folders")
+                .select("id")
+                .in("parent_id", currentLevel)
+                .eq("owner_id", req.userId)
+                .eq("is_deleted", false)
+
+            if (childError) {
+                console.error("descendant lookup failed", childError)
+                return res.status(500).json({
+                    error: { code: "INTERNAL_ERROR", message: "Failed to update folder" },
+                })
+            }
+
+            currentLevel = children.map(c => c.id)
+
+            if (currentLevel.includes(data.parentId)) {
+                return res.status(400).json({
+                    error: {
+                        code: "INVALID_MOVE",
+                        message: "Cannot move a folder into its own subfolder",
+                    },
+                })
+            }
+        }
+    }
+
+    const updates: Record<string, unknown> = {}
+    if (data.name !== undefined) updates.name = data.name
+    if (data.parentId !== undefined) updates.parent_id = data.parentId
+
+    const { data: folder, error: updateError } = await supabase
+        .from("folders")
+        .update(updates)
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", false)
+        .select("id, name, parent_id, created_at")
+        .single()
+
+    if (updateError) {
+        if (updateError.code === "23505") {
+            return res.status(409).json({
+                error: {
+                    code: "FOLDER_EXISTS",
+                    message: "A folder with that name already exists here",
+                },
+            })
+        }
+        console.error("update folder failed", updateError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to update folder" },
+        })
+    }
+
+    return res.status(200).json({ folder })
 }

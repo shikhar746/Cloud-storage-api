@@ -7,4 +7,13 @@ export const createFolderSchema = z.object({
   parentId: z.uuid().nullable().optional(),
 })
 
+export const updateFolderSchema = z.object({
+    name: z.string().min(1).max(255).optional(),
+    parentId: z.uuid().nullable().optional(),
+}).refine(
+    (d) => d.name !== undefined || d.parentId !== undefined,
+    { message: "Provide at least one field to update" }
+)
+
 export type CreateFolderInput = z.infer<typeof createFolderSchema>
+export type UpdateFolderInput = z.infer<typeof updateFolderSchema>
