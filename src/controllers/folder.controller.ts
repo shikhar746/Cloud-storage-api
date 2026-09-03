@@ -172,17 +172,40 @@ export async function deleteFolderController(req:Request, res:Response){
         allFolderIds.push(...currentLevel)
     }
 
-    await supabase
-        .from("folders")
-        .update({ is_deleted: true })
-        .in("id", allFolderIds)
-        .eq("owner_id", req.userId)
-
-    await supabase
+    const { error: filesUpdateError } = await supabase
         .from("files")
         .update({ is_deleted: true })
         .in("folder_id", allFolderIds)
         .eq("owner_id", req.userId)
+
+    if (filesUpdateError) {
+        console.error("cascade folder update failed", filesUpdateError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+        })
+    }
+
+    const { error: folderUpdateError } = await supabase
+    .from("folders")
+    .update({ is_deleted: true })
+    .in("id", allFolderIds)
+    .eq("owner_id", req.userId)
+
+    if (folderUpdateError) {
+
+        if (folderUpdateError.code === "23505") {
+            return res.status(409).json({
+                error: {
+                    code: "NAME_CONFLICT",
+                    message: "A folder with that name already exists here",
+                },
+        })
+    }
+        console.error("cascade folder update failed", folderUpdateError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+        })
+    }
 
     return res.status(204).send()
 }
@@ -225,17 +248,42 @@ export async function restoreFolderController(req:Request, res:Response){
         allFolderIds.push(...currentLevel)
     }
 
-    await supabase
-        .from("folders")
-        .update({ is_deleted: false })
-        .in("id", allFolderIds)
-        .eq("owner_id", req.userId)
-
-    await supabase
+    const { error: filesUpdateError } = await supabase
         .from("files")
         .update({ is_deleted: false })
         .in("folder_id", allFolderIds)
         .eq("owner_id", req.userId)
+
+    if (filesUpdateError) {
+        console.error("cascade folder update failed", filesUpdateError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+        })
+    }
+
+    const { error: folderUpdateError } = await supabase
+    .from("folders")
+    .update({ is_deleted: false })
+    .in("id", allFolderIds)
+    .eq("owner_id", req.userId)
+
+
+
+    if (folderUpdateError) {
+
+        if (folderUpdateError.code === "23505") {
+            return res.status(409).json({
+                error: {
+                    code: "NAME_CONFLICT",
+                    message: "A folder with that name already exists here",
+                },
+        })
+    }
+        console.error("cascade folder update failed", folderUpdateError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+        })
+    }
 
     return res.status(204).send()
 }
