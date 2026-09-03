@@ -9,14 +9,15 @@ router.post('/', requireAuth, createFolderController)
 //get root folder
 router.get('/root', requireAuth, getRootController)
 
-//get a folder
-router.get('/:id', requireAuth, getFolderController)
 
 router.delete("/:id", requireAuth, deleteFolderController)
 
 router.patch('/:id/restore',requireAuth, restoreFolderController)
 
 router.get("/trash", requireAuth, getTrashController)
+
+//get a folder
+router.get('/:id', requireAuth, getFolderController)
 
 router.patch('/:id', requireAuth, updateFolderController)
 export default router
