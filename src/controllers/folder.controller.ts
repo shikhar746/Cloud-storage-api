@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { createFolderSchema, updateFolderSchema } from "../schemas/folder.schema.js";
 import { supabase } from "../lib/supabase.js";
+import { env } from "../lib/env.js"
 
 export async function createFolderController(req:Request, res:Response){
     const { success, error, data } = createFolderSchema.safeParse(req.body)
@@ -474,4 +475,87 @@ export async function updateFolderController(req: Request, res: Response) {
     }
 
     return res.status(200).json({ folder })
+}
+
+export async function permanentDeleteFolderController(req: Request, res: Response) {
+  const { id } = req.params
+
+  const { data: folder, error: selectError } = await supabase
+    .from("folders")
+    .select("id")
+    .eq("id", id)
+    .eq("owner_id", req.userId)
+    .eq("is_deleted", true)
+    .single()
+
+  if (selectError || !folder) {
+    return res.status(404).json({
+      error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+    })
+  }
+
+  // collect the whole subtree
+  const allFolderIds = [id]
+  let currentLevel = [id]
+
+  while (currentLevel.length > 0) {
+    const { data: children, error: childError } = await supabase
+      .from("folders")
+      .select("id")
+      .in("parent_id", currentLevel)
+      .eq("owner_id", req.userId)
+      .eq("is_deleted", true)
+
+    if (childError) {
+      console.error("cascade lookup failed", childError)
+      return res.status(500).json({
+        error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+      })
+    }
+
+    currentLevel = children.map(c => c.id)
+    allFolderIds.push(...currentLevel)
+  }
+
+  // find every file in that subtree so we can clear the bucket
+  const { data: files, error: filesError } = await supabase
+    .from("files")
+    .select("storage_key")
+    .in("folder_id", allFolderIds)
+    .eq("owner_id", req.userId)
+
+  if (filesError) {
+    console.error("file lookup failed", filesError)
+    return res.status(500).json({
+      error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+    })
+  }
+
+  const storageKeys = files.map(f => f.storage_key)
+
+  if (storageKeys.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from(env.SUPABASE_STORAGE_BUCKET)
+      .remove(storageKeys)
+
+    if (storageError) {
+      console.error("bulk storage delete failed", storageError, storageKeys)
+      // log and continue — a stuck row is worse than a logged orphan
+    }
+  }
+
+  const { error: dbError } = await supabase
+    .from("folders")
+    .delete()
+    .in("id", allFolderIds)
+    .eq("owner_id", req.userId)
+
+  if (dbError) {
+    console.error("db delete failed", dbError)
+    return res.status(500).json({
+      error: { code: "DELETE_FAILED", message: "Failed to delete folder" },
+    })
+  }
+
+  return res.status(204).send()
 }

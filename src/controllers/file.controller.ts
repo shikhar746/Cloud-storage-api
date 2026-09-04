@@ -215,58 +215,93 @@ export async function updateFileController(req: Request, res: Response) {
     return res.status(200).json({ file })
 }
 
-// export async function deleteFileController(req: Request, res: Response) {
-//   const { id } = req.params
+export async function permanentDeleteFileController(req: Request, res: Response) {
+  const { id } = req.params
 
-//   // Delete from Supabase Storage first (physical delete)
-//   const { data: file, error: selectError } = await supabase
-//     .from("files")
-//     .select("storage_key")
-//     .eq("id", id)
-//     .eq("owner_id", req.userId)
-//     .eq("is_deleted", false)
-//     .single()
+  // Delete from Supabase Storage first (physical delete)
+  const { data: file, error: selectError } = await supabase
+    .from("files")
+    .select("storage_key")
+    .eq("id", id)
+    .eq("owner_id", req.userId)
+    .eq("is_deleted", true)
+    .single()
 
-//   if (selectError || !file) {
-//     return res.status(404).json({
-//       error: { code: "FILE_NOT_FOUND", message: "File not found" },
-//     })
-//   }
+  if (selectError || !file) {
+    return res.status(404).json({
+      error: { code: "FILE_NOT_FOUND", message: "File not found" },
+    })
+  }
 
-//   const { error: storageError } = await supabase.storage
-//     .from(env.SUPABASE_STORAGE_BUCKET)
-//     .remove([file.storage_key])
+  const { error: storageError } = await supabase.storage
+    .from(env.SUPABASE_STORAGE_BUCKET)
+    .remove([file.storage_key])
 
-//   if (storageError) {
-//     console.error("storage delete failed", storageError)
-//     return res.status(500).json({
-//       error: { code: "DELETE_FAILED", message: "Failed to delete file" },
-//     })
-//   }
+  if (storageError) {
+    console.error("storage delete failed",  storageError, file.storage_key)
 
-//   // Then delete from database
-//   const { error: dbError } = await supabase
-//     .from("files")
-//     .delete()
-//     .eq("id", id)
-//     .eq("owner_id", req.userId)
 
-//   if (dbError) {
-//     console.error("db delete failed", dbError)
-//     return res.status(500).json({
-//       error: { code: "DELETE_FAILED", message: "Failed to delete file" },
-//     })
-//   }
 
-//   return res.status(204).send()
-// }
+    
+  //if storage delete fails then we dont delete file from db 
+
+    // return res.status(500).json({
+    //   error: { code: "DELETE_FAILED", message: "Failed to delete file" },
+    // })
+  }
+
+  // Then delete from database
+  const { error: dbError } = await supabase
+    .from("files")
+    .delete()
+    .eq("id", id)
+    .eq("owner_id", req.userId)
+
+  if (dbError) {
+    console.error("db delete failed", dbError)
+    return res.status(500).json({
+      error: { code: "DELETE_FAILED", message: "Failed to delete file" },
+    })
+  }
+
+  return res.status(204).send()
+}
 
 export async function restoreFileController(req: Request, res: Response){
     const { id } = req.params
 
+        const { data: target, error: targetError } = await supabase
+        .from("files")
+        .select("id, folder_id")
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+        .single()
+
+    if (targetError || !target)
+        return res.status(404).json({
+            error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+
+    let parentIsDeleted = false
+
+    if (target.folder_id) {
+        const { data: parent } = await supabase
+            .from("folders")
+            .select("id, is_deleted")
+            .eq("id", target.folder_id)
+            .eq("owner_id", req.userId)
+            .single()
+
+        parentIsDeleted = !parent || parent.is_deleted
+    }
+
+    const restoreUpdate: Record<string, unknown> = { is_deleted: false }
+    if (parentIsDeleted) restoreUpdate.folder_id = null
+
     const { data: file, error: fileError } = await supabase
         .from("files")
-        .update({ is_deleted: false })
+        .update(restoreUpdate)
         .eq("id", id)
         .eq("owner_id", req.userId)
         .eq("is_deleted", true)
@@ -280,3 +315,4 @@ export async function restoreFileController(req: Request, res: Response){
 
     return res.status(200).json({ file })
 }
+

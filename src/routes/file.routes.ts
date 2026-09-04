@@ -7,7 +7,8 @@ import {
   listFileController,
   deleteFileController,
   updateFileController,
-  restoreFileController
+  restoreFileController,
+  permanentDeleteFileController
 } from "../controllers/file.controller.js"
 
 const router = express.Router()
@@ -20,6 +21,8 @@ router.post('/upload', requireAuth, upload.single('file'), uploadFileController)
 router.get('/:id', requireAuth, getFileController)
 
 router.delete('/:id', requireAuth, deleteFileController)
+
+router.delete('/:id/permanent',requireAuth, permanentDeleteFileController)
 
 router.patch('/:id',requireAuth, updateFileController)
 
