@@ -1,11 +1,18 @@
 import express from "express"
 import { requireAuth } from "../middleware/requireAuth.js"
 import { upload } from "../middleware/upload.js"
-import { uploadFileController, getFileController, listFileController, deleteFileController, updateFileController} from "../controllers/file.controller.js"
+import {
+  uploadFileController,
+  getFileController,
+  listFileController,
+  deleteFileController,
+  updateFileController,
+  restoreFileController
+} from "../controllers/file.controller.js"
 
 const router = express.Router()
 
-router.get('/',requireAuth, listFileController)
+router.get('/', requireAuth, listFileController)
 
 //upload a new file
 router.post('/upload', requireAuth, upload.single('file'), uploadFileController)
@@ -16,4 +23,5 @@ router.delete('/:id', requireAuth, deleteFileController)
 
 router.patch('/:id',requireAuth, updateFileController)
 
+router.patch('/:id/restore',requireAuth, restoreFileController)
 export default router

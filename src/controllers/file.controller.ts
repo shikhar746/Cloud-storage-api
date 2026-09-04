@@ -214,3 +214,69 @@ export async function updateFileController(req: Request, res: Response) {
 
     return res.status(200).json({ file })
 }
+
+// export async function deleteFileController(req: Request, res: Response) {
+//   const { id } = req.params
+
+//   // Delete from Supabase Storage first (physical delete)
+//   const { data: file, error: selectError } = await supabase
+//     .from("files")
+//     .select("storage_key")
+//     .eq("id", id)
+//     .eq("owner_id", req.userId)
+//     .eq("is_deleted", false)
+//     .single()
+
+//   if (selectError || !file) {
+//     return res.status(404).json({
+//       error: { code: "FILE_NOT_FOUND", message: "File not found" },
+//     })
+//   }
+
+//   const { error: storageError } = await supabase.storage
+//     .from(env.SUPABASE_STORAGE_BUCKET)
+//     .remove([file.storage_key])
+
+//   if (storageError) {
+//     console.error("storage delete failed", storageError)
+//     return res.status(500).json({
+//       error: { code: "DELETE_FAILED", message: "Failed to delete file" },
+//     })
+//   }
+
+//   // Then delete from database
+//   const { error: dbError } = await supabase
+//     .from("files")
+//     .delete()
+//     .eq("id", id)
+//     .eq("owner_id", req.userId)
+
+//   if (dbError) {
+//     console.error("db delete failed", dbError)
+//     return res.status(500).json({
+//       error: { code: "DELETE_FAILED", message: "Failed to delete file" },
+//     })
+//   }
+
+//   return res.status(204).send()
+// }
+
+export async function restoreFileController(req: Request, res: Response){
+    const { id } = req.params
+
+    const { data: file, error: fileError } = await supabase
+        .from("files")
+        .update({ is_deleted: false })
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .single()
+
+    if (fileError || !file)
+        return res.status(404).json({
+            error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+
+    return res.status(200).json({ file })
+}

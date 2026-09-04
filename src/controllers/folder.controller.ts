@@ -207,22 +207,70 @@ export async function deleteFolderController(req:Request, res:Response){
     return res.status(204).send()
 }
 
-export async function restoreFolderController(req:Request, res:Response){
-    const {id} = req.params
+export async function restoreFolderController(req: Request, res: Response) {
+    const { id } = req.params
+
+    // look before writing — we may need to change the parent
+    const { data: target, error: targetError } = await supabase
+        .from("folders")
+        .select("id, parent_id")
+        .eq("id", id)
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+        .single()
+
+    if (targetError || !target)
+        return res.status(404).json({
+            error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+        })
+
+    // if the original parent is still in the trash, restore to root instead
+    let parentIsDeleted = false
+
+    if (target.parent_id) {
+        const { data: parent } = await supabase
+            .from("folders")
+            .select("id, is_deleted")
+            .eq("id", target.parent_id)
+            .eq("owner_id", req.userId)
+            .single()
+
+        parentIsDeleted = !parent || parent.is_deleted
+    }
+
+    const restoreUpdate: Record<string, unknown> = { is_deleted: false }
+    if (parentIsDeleted) restoreUpdate.parent_id = null
 
     const { data: folder, error: folderError } = await supabase
         .from("folders")
-        .update({ is_deleted: false })
+        .update(restoreUpdate)
         .eq("id", id)
         .eq("owner_id", req.userId)
         .eq("is_deleted", true)
         .select("id")
         .single()
 
-    if (folderError || !folder)
+    if (folderError) {
+        if (folderError.code === "23505") {
+            return res.status(409).json({
+                error: {
+                    code: "NAME_CONFLICT",
+                    message: "A folder with that name already exists there. Rename it and try again.",
+                },
+            })
+        }
+        console.error("restore failed", folderError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to restore folder" },
+        })
+    }
+
+    if (!folder)
         return res.status(404).json({
             error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
         })
+
+    // collect descendants that were cascade-deleted along with this folder
     const allFolderIds = [id]
     let currentLevel = [id]
 
@@ -252,33 +300,22 @@ export async function restoreFolderController(req:Request, res:Response){
         .eq("owner_id", req.userId)
 
     if (filesUpdateError) {
-        console.error("cascade folder update failed", filesUpdateError)
+        console.error("cascade file restore failed", filesUpdateError)
         return res.status(500).json({
             error: { code: "INTERNAL_ERROR", message: "Failed to restore folder" },
         })
     }
 
     const { error: folderUpdateError } = await supabase
-    .from("folders")
-    .update({ is_deleted: false })
-    .in("id", allFolderIds)
-    .eq("owner_id", req.userId)
-
-
+        .from("folders")
+        .update({ is_deleted: false })
+        .in("id", allFolderIds)
+        .eq("owner_id", req.userId)
 
     if (folderUpdateError) {
-
-        if (folderUpdateError.code === "23505") {
-            return res.status(409).json({
-                error: {
-                    code: "NAME_CONFLICT",
-                    message: "A folder with that name already exists here",
-                },
-        })
-    }
-        console.error("cascade folder update failed", folderUpdateError)
+        console.error("cascade folder restore failed", folderUpdateError)
         return res.status(500).json({
-            error: { code: "INTERNAL_ERROR", message: "Failed to delete folder" },
+            error: { code: "INTERNAL_ERROR", message: "Failed to restore folder" },
         })
     }
 
