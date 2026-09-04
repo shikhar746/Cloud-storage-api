@@ -32,7 +32,7 @@ export async function getAccessRole(
     .eq('resource_type', resourceType)
     .eq('resource_id', resourceId)
     .eq('grantee_user_id', userId)
-    .single()
+    .maybeSingle()
 
   if (direct) return direct.role as AccessRole
 
