@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { createFolderSchema, updateFolderSchema } from "../schemas/folder.schema.js";
 import { supabase } from "../lib/supabase.js";
-import { env } from "../lib/env.js"
+import { env } from "../config/env.js"
 
 export async function createFolderController(req:Request, res:Response){
     const { success, error, data } = createFolderSchema.safeParse(req.body)
