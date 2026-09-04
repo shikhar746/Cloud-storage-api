@@ -7,6 +7,7 @@ import folderRoutes from './routes/folder.routes.js'
 import fileRoutes from './routes/file.routes.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import searchRoutes from "./routes/search.routes.js"
+import shareRoutes from './routes/share.routes.js'
 
 const app = express()
 
@@ -28,6 +29,8 @@ app.use('/api/folders', folderRoutes)
 app.use("/api/files", fileRoutes)
 
 app.use('/api/search', searchRoutes)
+
+app.use('/api/shares', shareRoutes)
 
 app.use((_req, res) => {
     res.status(404).json({
