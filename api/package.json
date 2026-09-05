@@ -10,7 +10,6 @@
   "keywords": [],
   "type": "module",
   "dependencies": {
-    "@supabase/server": "^1.4.1",
     "@supabase/supabase-js": "^2.112.4",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",

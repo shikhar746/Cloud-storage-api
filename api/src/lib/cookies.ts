@@ -10,11 +10,11 @@ const base = {
 }
 
 export function setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
-  res.cookie('accessToken', accessToken, { ...base, maxAge: 60 * 60 * 1000 })
+  res.cookie('accessToken', accessToken, { ...base, maxAge: env.ACCESS_TOKEN_TTL.ms })
   res.cookie('refreshToken', refreshToken, {
     ...base,
     path: '/api/auth/refresh',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: env.REFRESH_TOKEN_TTL.ms,
   })
 }
 

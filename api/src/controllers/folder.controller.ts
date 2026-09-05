@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { createFolderSchema, updateFolderSchema } from "../schemas/folder.schema.js";
 import { supabase } from "../lib/supabase.js";
 import { env } from "../config/env.js"
+import { getAccessRole } from "../lib/access.js"
 
 export async function createFolderController(req:Request, res:Response){
     const { success, error, data } = createFolderSchema.safeParse(req.body)
@@ -57,12 +58,19 @@ export async function createFolderController(req:Request, res:Response){
 export async function getFolderController(req: Request, res: Response) {
   const { id } = req.params
 
+  // owned, or shared with us directly / through a parent folder
+  const role = await getAccessRole(req.userId, 'folder', id as string)
+  if (!role) {
+    return res.status(404).json({
+      error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+    })
+  }
+
   // 1. fetch the folder itself
   const { data: folder, error: folderError } = await supabase
     .from("folders")
     .select("id, name, parent_id, created_at")
     .eq("id", id)
-    .eq("owner_id", req.userId)
     .eq("is_deleted", false)
     .single()
 
@@ -75,9 +83,8 @@ export async function getFolderController(req: Request, res: Response) {
         .from("folders")
         .select("id, name, parent_id, created_at")
         .eq("parent_id", id)
-        .eq("owner_id", req.userId)
         .eq("is_deleted", false)
-    
+
     if (foldersError) {
         console.error("list child folders failed", foldersError)
         return res.status(500).json({
@@ -89,7 +96,6 @@ export async function getFolderController(req: Request, res: Response) {
         .from("files")
         .select("id, name, mime_type, size_bytes, created_at")
         .eq("folder_id", id)
-        .eq("owner_id", req.userId)
         .eq("is_deleted", false)
 
     if (filesError) {
@@ -377,16 +383,9 @@ export async function updateFolderController(req: Request, res: Response) {
         })
     }
 
-    // folder must exist and be ours
-    const { data: existing, error: existingError } = await supabase
-        .from("folders")
-        .select("id")
-        .eq("id", id)
-        .eq("owner_id", req.userId)
-        .eq("is_deleted", false)
-        .single()
-
-    if (existingError || !existing) {
+    // editing (rename/move) requires owner or editor access to the folder itself
+    const role = await getAccessRole(req.userId, 'folder', id as string)
+    if (role !== 'owner' && role !== 'editor') {
         return res.status(404).json({
             error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
         })
@@ -400,15 +399,8 @@ export async function updateFolderController(req: Request, res: Response) {
             })
         }
 
-        const { data: parent, error: parentError } = await supabase
-            .from("folders")
-            .select("id")
-            .eq("id", data.parentId)
-            .eq("owner_id", req.userId)
-            .eq("is_deleted", false)
-            .single()
-
-        if (parentError || !parent) {
+        const parentRole = await getAccessRole(req.userId, 'folder', data.parentId)
+        if (parentRole !== 'owner' && parentRole !== 'editor') {
             return res.status(404).json({
                 error: { code: "PARENT_NOT_FOUND", message: "Parent folder not found" },
             })
@@ -423,7 +415,6 @@ export async function updateFolderController(req: Request, res: Response) {
                 .from("folders")
                 .select("id")
                 .in("parent_id", currentLevel)
-                .eq("owner_id", req.userId)
                 .eq("is_deleted", false)
 
             if (childError) {
@@ -454,7 +445,6 @@ export async function updateFolderController(req: Request, res: Response) {
         .from("folders")
         .update(updates)
         .eq("id", id)
-        .eq("owner_id", req.userId)
         .eq("is_deleted", false)
         .select("id, name, parent_id, created_at")
         .single()

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { supabase } from '../lib/supabase.js'
 import { env } from '../config/env.js'
+import { getAccessRole } from '../lib/access.js'
 import { uploadFileSchema, updateFileSchema } from '../schemas/file.schema.js'
 
 export async function uploadFileController(req: Request, res: Response) {
@@ -91,11 +92,17 @@ export async function uploadFileController(req: Request, res: Response) {
 export async function getFileController(req:Request, res: Response){
     const { id }= req.params
 
+    // owned, or shared with us directly / through a parent folder
+    const role = await getAccessRole(req.userId, 'file', id as string)
+    if (!role)
+        return res.status(404).json({
+            error: {code : "FILE_NOT_FOUND", message: "File not found"}
+        })
+
     const {data: file, error: fileError } = await supabase
         .from("files")
         .select("id, name, mime_type, size_bytes, storage_key, folder_id, created_at")
         .eq("id", id)
-        .eq("owner_id", req.userId)//doing the authorization part
         .eq("is_deleted", false)
         .single()
 
@@ -178,16 +185,17 @@ export async function updateFileController(req: Request, res: Response) {
         })
     }
 
-    if (rawdata.folderId) {
-      const { data: folder, error: folderError } = await supabase
-          .from("folders")
-          .select("id")
-          .eq("id", rawdata.folderId)
-          .eq("owner_id", req.userId)
-          .eq("is_deleted", false)
-          .single()
+    // editing (rename/move) requires owner or editor access to the file itself
+    const role = await getAccessRole(req.userId, 'file', id as string)
+    if (role !== 'owner' && role !== 'editor') {
+        return res.status(404).json({
+            error: { code: "FILE_NOT_FOUND", message: "File not found" },
+        })
+    }
 
-      if (folderError || !folder) {
+    if (rawdata.folderId) {
+      const folderRole = await getAccessRole(req.userId, 'folder', rawdata.folderId)
+      if (folderRole !== 'owner' && folderRole !== 'editor') {
           return res.status(404).json({
               error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
           })
@@ -202,7 +210,6 @@ export async function updateFileController(req: Request, res: Response) {
         .from("files")
         .update(updates)
         .eq("id", id)
-        .eq("owner_id", req.userId)
         .eq("is_deleted", false)
         .select("id, name, mime_type, size_bytes, folder_id, created_at")
         .single()

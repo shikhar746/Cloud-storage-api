@@ -26,6 +26,26 @@ function optionalStringArray(name: string, fallback: string[]): string[] {
     return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : fallback
 }
 
+const DURATION_UNIT_MS: Record<string, number> = {
+    s: 1_000,
+    m: 60_000,
+    h: 3_600_000,
+    d: 86_400_000,
+}
+
+// optionalDuration(name, fallback)
+// helper for token TTLs, e.g. "15m", "1h", "7d" — returns both the raw
+// string (for jsonwebtoken's expiresIn) and the millisecond value (for
+// cookie maxAge), so the two never drift apart
+function optionalDuration(name: string, fallback: string): { raw: string; ms: number } {
+    const raw = process.env[name] ?? fallback
+    const match = /^(\d+)(s|m|h|d)$/.exec(raw)
+    if (!match)
+        throw new Error(`Environment variable ${name} must look like "15m", "1h", or "7d", got: ${raw}`)
+    const [, amount, unit] = match as unknown as [string, string, string]
+    return { raw, ms: Number(amount) * DURATION_UNIT_MS[unit]! }
+}
+
 export const env = {
     // server
     PORT: optionalNumber('PORT', 8080),
@@ -34,7 +54,8 @@ export const env = {
     // auth
     JWT_SECRET: required('JWT_SECRET'),
     REFRESH_SECRET: required('REFRESH_SECRET'),
-    // ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL ?? '15m',
+    ACCESS_TOKEN_TTL: optionalDuration('ACCESS_TOKEN_TTL', '15m'),
+    REFRESH_TOKEN_TTL: optionalDuration('REFRESH_TOKEN_TTL', '7d'),
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
