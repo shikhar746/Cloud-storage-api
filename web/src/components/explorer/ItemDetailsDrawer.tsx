@@ -27,6 +27,7 @@ export const ItemDetailsDrawer: React.FC = () => {
     deleteFolder,
     deleteFile,
     navigateToFolder,
+    downloadFile,
   } = useStorage();
 
   if (!selectedItem) return null;
@@ -74,7 +75,7 @@ export const ItemDetailsDrawer: React.FC = () => {
       </div>
 
       {/* Quick Actions Row */}
-      <div className="grid grid-cols-4 gap-1.5 py-3 border-b border-[#1f1f1f]">
+      <div className={`grid ${!isFolder ? 'grid-cols-5' : 'grid-cols-4'} gap-1 py-3 border-b border-[#1f1f1f]`}>
         {!isFolder && (
           <button
             onClick={() => setPreviewFile(item as any)}
@@ -83,6 +84,16 @@ export const ItemDetailsDrawer: React.FC = () => {
           >
             <Eye className="w-4 h-4 text-indigo-400" />
             <span className="text-[10px] font-medium">Preview</span>
+          </button>
+        )}
+        {!isFolder && (
+          <button
+            onClick={() => downloadFile(item as any)}
+            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#1a1a1a] text-gray-300 transition-colors"
+            title="Download"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] font-medium">Download</span>
           </button>
         )}
         {isFolder && (

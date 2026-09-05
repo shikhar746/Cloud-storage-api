@@ -47,10 +47,10 @@ export const Sidebar: React.FC = () => {
     }
   };
 
-  const percentUsed = Math.min(
-    100,
-    Math.max(1, (storageUsage.usedBytes / storageUsage.totalBytes) * 100)
-  );
+  const percentUsed =
+    storageUsage.totalBytes > 0
+      ? Math.min(100, Math.max(1, (storageUsage.usedBytes / storageUsage.totalBytes) * 100))
+      : 0;
 
   const trashCount = trashData.folders.length + trashData.files.length;
 
@@ -182,28 +182,30 @@ export const Sidebar: React.FC = () => {
                 {activeTab === 'files' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
               </button>
 
-              <button
-                id="nav-shared"
-                onClick={() => {
-                  setActiveTab('shared');
-                  handleNav();
-                }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  activeTab === 'shared'
-                    ? 'bg-indigo-600/10 text-indigo-400 font-semibold'
-                    : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Users
-                    className={`w-4 h-4 ${
-                      activeTab === 'shared' ? 'text-indigo-400' : 'text-gray-500'
-                    }`}
-                  />
-                  <span>Shared with me</span>
-                </div>
-                {activeTab === 'shared' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
-              </button>
+              {apiMode === 'sandbox' && (
+                <button
+                  id="nav-shared"
+                  onClick={() => {
+                    setActiveTab('shared');
+                    handleNav();
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    activeTab === 'shared'
+                      ? 'bg-indigo-600/10 text-indigo-400 font-semibold'
+                      : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users
+                      className={`w-4 h-4 ${
+                        activeTab === 'shared' ? 'text-indigo-400' : 'text-gray-500'
+                      }`}
+                    />
+                    <span>Shared with me</span>
+                  </div>
+                  {activeTab === 'shared' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
+                </button>
+              )}
 
               <button
                 id="nav-trash"
@@ -261,16 +263,24 @@ export const Sidebar: React.FC = () => {
             </div>
 
             {/* Progress bar */}
-            <div className="h-1.5 w-full rounded-full bg-[#1f1f1f] overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                style={{ width: `${percentUsed}%` }}
-              />
-            </div>
+            {storageUsage.totalBytes > 0 ? (
+              <>
+                <div className="h-1.5 w-full rounded-full bg-[#1f1f1f] overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                    style={{ width: `${percentUsed}%` }}
+                  />
+                </div>
 
-            <p className="text-[11px] text-gray-500">
-              {formatBytes(storageUsage.usedBytes)} used of {formatBytes(storageUsage.totalBytes)} total
-            </p>
+                <p className="text-[11px] text-gray-500">
+                  {formatBytes(storageUsage.usedBytes)} used of {formatBytes(storageUsage.totalBytes)} total
+                </p>
+              </>
+            ) : (
+              <p className="text-[11px] text-gray-500">
+                50 MB max per file · No total quota limit
+              </p>
+            )}
 
             {/* Storage breakdown pills */}
             <div className="pt-2 border-t border-[#1f1f1f] flex flex-wrap gap-1.5 text-[10px]">

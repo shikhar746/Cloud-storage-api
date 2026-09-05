@@ -1,39 +1,98 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Download,
   Share2,
   Copy,
   Check,
-  ExternalLink,
   Calendar,
   HardDrive,
   FileText,
-  Info,
+  Loader2,
 } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 import { FileIcon } from '../common/FileIcon';
 import { formatBytes, formatDate } from '../../utils/formatters';
 
 export const FilePreviewModal: React.FC = () => {
-  const { previewFile, setPreviewFile, setShareTarget } = useStorage();
+  const { previewFile, setPreviewFile, setShareTarget, downloadFile } = useStorage();
+  const { user } = useAuth();
+
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState<boolean>(false);
+  const [textContent, setTextContent] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!previewFile) {
+      setActiveUrl(null);
+      setTextContent(null);
+      return;
+    }
+
+    // Set initial fallback if already present
+    setActiveUrl(previewFile.signedUrl || previewFile.previewUrl || null);
+    setTextContent(previewFile.content || null);
+
+    if (!user) return;
+
+    let isMounted = true;
+    setLoadingUrl(true);
+
+    // Fetch fresh signed URL from API per-open (expires in 1 hour)
+    api.getFile(user.id, previewFile.id)
+      .then((res: any) => {
+        if (!isMounted) return;
+        const freshUrl = res.signedUrl || res.file?.signedUrl || res.file?.previewUrl;
+        if (freshUrl) {
+          setActiveUrl(freshUrl);
+          const isText =
+            previewFile.mime_type.startsWith('text/') ||
+            previewFile.name.endsWith('.md') ||
+            previewFile.name.endsWith('.json') ||
+            previewFile.name.endsWith('.txt');
+          if (isText && !previewFile.content) {
+            fetch(freshUrl)
+              .then((r) => r.text())
+              .then((txt) => {
+                if (isMounted) setTextContent(txt);
+              })
+              .catch(() => {});
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch signed url:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingUrl(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [previewFile?.id, user]);
 
   if (!previewFile) return null;
 
-  const downloadUrl = previewFile.previewUrl || previewFile.signedUrl || '#';
+  const downloadUrl = activeUrl || previewFile.previewUrl || previewFile.signedUrl || '#';
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(downloadUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (downloadUrl && downloadUrl !== '#') {
+      navigator.clipboard.writeText(downloadUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const isImage =
     previewFile.mime_type.startsWith('image/') ||
     previewFile.name.endsWith('.svg') ||
     previewFile.name.endsWith('.png') ||
-    previewFile.name.endsWith('.jpg');
+    previewFile.name.endsWith('.jpg') ||
+    previewFile.name.endsWith('.webp');
 
   const isText =
     previewFile.mime_type.startsWith('text/') ||
@@ -61,14 +120,13 @@ export const FilePreviewModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <a
-              href={downloadUrl}
-              download={previewFile.name}
+            <button
+              onClick={() => downloadFile(previewFile)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Download</span>
-            </a>
+            </button>
             <button
               onClick={() => {
                 const f = previewFile;
@@ -93,33 +151,39 @@ export const FilePreviewModal: React.FC = () => {
         {/* Content Body & Info Sidebar */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Main Visual/Text Preview Area */}
-          <div className="flex-1 bg-[#0a0a0a] p-6 flex items-center justify-center overflow-auto">
-            {isImage && previewFile.previewUrl ? (
+          <div className="flex-1 bg-[#0a0a0a] p-6 flex items-center justify-center overflow-auto relative">
+            {loadingUrl && (
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[11px] text-gray-400 bg-[#161616]/80 px-2 py-1 rounded-md border border-[#222]">
+                <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                <span>Fetching signed URL...</span>
+              </div>
+            )}
+
+            {isImage && activeUrl ? (
               <img
-                src={previewFile.previewUrl}
+                src={activeUrl}
                 alt={previewFile.name}
                 className="max-h-full max-w-full rounded-lg object-contain shadow-xs border border-[#1f1f1f]"
                 referrerPolicy="no-referrer"
               />
-            ) : isText && previewFile.content ? (
+            ) : isText && textContent ? (
               <div className="w-full h-full bg-[#141414] rounded-xl border border-[#1f1f1f] p-4 font-mono text-xs text-gray-200 overflow-auto whitespace-pre-wrap leading-relaxed shadow-2xs">
-                {previewFile.content}
+                {textContent}
               </div>
             ) : (
               <div className="text-center p-8">
                 <FileIcon name={previewFile.name} mimeType={previewFile.mime_type} size="xl" className="mx-auto mb-4" />
                 <h4 className="text-base font-bold text-gray-200 mb-1">{previewFile.name}</h4>
                 <p className="text-xs text-gray-400 max-w-xs mx-auto mb-6">
-                  Preview not rendered in-browser for this file format ({previewFile.mime_type}). You can download it directly.
+                  {loadingUrl ? 'Loading secure signed URL...' : `File format: ${previewFile.mime_type || 'Unknown'}. You can download it directly.`}
                 </p>
-                <a
-                  href={downloadUrl}
-                  download={previewFile.name}
+                <button
+                  onClick={() => downloadFile(previewFile)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download file ({formatBytes(previewFile.size_bytes)})</span>
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -164,10 +228,11 @@ export const FilePreviewModal: React.FC = () => {
               <button
                 id="copy-preview-link-btn"
                 onClick={handleCopyLink}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-[#1f1f1f] hover:bg-[#1a1a1a] text-gray-300 font-medium transition-colors"
+                disabled={!activeUrl || activeUrl === '#'}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-[#1f1f1f] hover:bg-[#1a1a1a] text-gray-300 font-medium transition-colors disabled:opacity-40"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Link Copied!' : 'Copy Download Link'}</span>
+                <span>{copied ? 'Link Copied!' : 'Copy Signed Download URL'}</span>
               </button>
             </div>
           </div>
