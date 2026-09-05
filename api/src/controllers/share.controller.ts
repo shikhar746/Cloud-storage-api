@@ -63,6 +63,72 @@ export async function createShareController(req: Request, res: Response) {
   return res.status(201).json({ share })
 }
 
+export async function listSharedWithMeController(req: Request, res: Response) {
+  const { data: shares, error: sharesError } = await supabase
+    .from('shares')
+    .select('id, resource_type, resource_id, role, created_at, users!created_by(id, email, name)')
+    .eq('grantee_user_id', req.userId)
+
+  if (sharesError) {
+    console.error('list shared-with-me failed', sharesError)
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to load shared items' },
+    })
+  }
+
+  // only the directly shared resources are listed. what sits inside a shared
+  // folder is reachable by opening it, and getAccessRole already lets that in.
+  const folderIds = shares.filter(s => s.resource_type === 'folder').map(s => s.resource_id)
+  const fileIds = shares.filter(s => s.resource_type === 'file').map(s => s.resource_id)
+
+  const byResourceId = new Map(shares.map(s => [s.resource_id, s]))
+
+  // a share row outlives the resource being trashed, so filter on is_deleted
+  // here rather than trusting the share to have been cleaned up
+  const [folderResult, fileResult] = await Promise.all([
+    folderIds.length > 0
+      ? supabase
+          .from('folders')
+          .select('id, name, parent_id, owner_id, created_at')
+          .in('id', folderIds)
+          .eq('is_deleted', false)
+      : Promise.resolve({ data: [], error: null }),
+    fileIds.length > 0
+      ? supabase
+          .from('files')
+          .select('id, name, mime_type, size_bytes, folder_id, owner_id, created_at')
+          .in('id', fileIds)
+          .eq('is_deleted', false)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  if (folderResult.error || fileResult.error) {
+    console.error('shared-with-me lookup failed', folderResult.error, fileResult.error)
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to load shared items' },
+    })
+  }
+
+  const decorate = <T extends { id: string }>(row: T) => {
+    const share = byResourceId.get(row.id)
+    const sharedBy = share?.users as unknown as
+      | { id: string; email: string; name: string | null }
+      | null
+    return {
+      ...row,
+      share_id: share?.id,
+      role: share?.role,
+      shared_at: share?.created_at,
+      shared_by: sharedBy ?? null,
+    }
+  }
+
+  return res.status(200).json({
+    folders: (folderResult.data ?? []).map(decorate),
+    files: (fileResult.data ?? []).map(decorate),
+  })
+}
+
 export async function listSharesController(req: Request, res: Response) {
   const { resourceType, resourceId } = req.params
 //reason why typeof resourseId is checked is that req.params return a string or undefined or null

@@ -18,6 +18,8 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
     selectedItem,
     setSelectedItem,
     moveFile,
+    canEdit,
+    canShare,
   } = useStorage();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -39,7 +41,8 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+    // no drop target when the caller cannot move things here anyway
+    if (canEdit) setIsDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -52,6 +55,7 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
+    if (!canEdit) return;
     const fileId = e.dataTransfer.getData('application/csa-file-id');
     if (fileId) {
       await moveFile(fileId, folder.id);
@@ -117,51 +121,57 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
               <ArrowRight className="w-3.5 h-3.5 text-gray-500" />
               <span>Open Folder</span>
             </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(false);
-                setShareTarget({ type: 'folder', item: folder });
-              }}
-              className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-            >
-              <Share2 className="w-3.5 h-3.5 text-gray-500" />
-              <span>Share Access</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(false);
-                setRenameTarget({ type: 'folder', id: folder.id, currentName: folder.name });
-              }}
-              className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-gray-500" />
-              <span>Rename</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(false);
-                setMoveTarget({ type: 'folder', id: folder.id, name: folder.name });
-              }}
-              className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-            >
-              <FolderInput className="w-3.5 h-3.5 text-gray-500" />
-              <span>Move To...</span>
-            </button>
-            <div className="border-t border-[#1f1f1f] my-1" />
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                setIsMenuOpen(false);
-                await deleteFolder(folder.id);
-              }}
-              className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-red-400 hover:bg-red-950/30 font-medium"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-red-400" />
-              <span>Move to Trash</span>
-            </button>
+            {canShare && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMenuOpen(false);
+                  setShareTarget({ type: 'folder', item: folder });
+                }}
+                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+              >
+                <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                <span>Share Access</span>
+              </button>
+            )}
+            {canEdit && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    setRenameTarget({ type: 'folder', id: folder.id, currentName: folder.name });
+                  }}
+                  className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Rename</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    setMoveTarget({ type: 'folder', id: folder.id, name: folder.name });
+                  }}
+                  className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+                >
+                  <FolderInput className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Move To...</span>
+                </button>
+                <div className="border-t border-[#1f1f1f] my-1" />
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    await deleteFolder(folder.id);
+                  }}
+                  className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-red-400 hover:bg-red-950/30 font-medium"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <span>Move to Trash</span>
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

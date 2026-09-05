@@ -11,7 +11,7 @@ export const ShareModal: React.FC = () => {
   const { shareTarget, setShareTarget } = useStorage();
   const { user } = useAuth();
 
-  const [granteeUserId, setGranteeUserId] = useState('');
+  const [grantee, setGrantee] = useState('');
   const [role, setRole] = useState<ShareRole>('viewer');
   const [shares, setShares] = useState<ShareItem[]>([]);
   const [loadingShares, setLoadingShares] = useState(false);
@@ -44,28 +44,34 @@ export const ShareModal: React.FC = () => {
   const handleCreateShare = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const cleanId = granteeUserId.trim();
+    const input = grantee.trim();
 
-    if (!cleanId) {
-      setError('Please enter a User UUID');
-      return;
-    }
-
-    if (!UUID_REGEX.test(cleanId)) {
-      setError('The API requires a valid User UUID (e.g. 123e4567-e89b-12d3-a456-426614174000). The API has no email lookup route.');
-      return;
-    }
-
-    if (cleanId === user.id) {
-      setError('You already own this resource.');
+    if (!input) {
+      setError('Enter an email address or user ID');
       return;
     }
 
     setSubmitting(true);
     setError(null);
     try {
-      await api.createShare(user.id, shareTarget.type, shareTarget.item.id, cleanId, role);
-      setGranteeUserId('');
+      // the share endpoint takes a UUID, so resolve an email to one first
+      let granteeUserId = input;
+      if (!UUID_REGEX.test(input)) {
+        if (!input.includes('@')) {
+          setError('Enter an email address, or the collaborator\'s user ID.');
+          return;
+        }
+        const found = await api.lookupUserByEmail(input.toLowerCase());
+        granteeUserId = found.id;
+      }
+
+      if (granteeUserId === user.id) {
+        setError('You already own this resource.');
+        return;
+      }
+
+      await api.createShare(user.id, shareTarget.type, shareTarget.item.id, granteeUserId, role);
+      setGrantee('');
       await loadShares();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to share resource');
@@ -131,7 +137,7 @@ export const ShareModal: React.FC = () => {
         <form onSubmit={handleCreateShare} className="mb-6 space-y-2">
           <div className="flex items-center justify-between">
             <label className="block text-xs font-semibold text-gray-300">
-              Grant access by User ID (UUID)
+              Grant access by email
             </label>
             <button
               type="button"
@@ -147,10 +153,10 @@ export const ShareModal: React.FC = () => {
               id="share-user-id-input"
               type="text"
               required
-              value={granteeUserId}
-              onChange={(e) => setGranteeUserId(e.target.value)}
-              placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000"
-              className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs font-mono text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              value={grantee}
+              onChange={(e) => setGrantee(e.target.value)}
+              placeholder="name@company.com"
+              className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <select
               id="share-role-select"
@@ -171,7 +177,7 @@ export const ShareModal: React.FC = () => {
             </button>
           </div>
           <p className="text-[11px] text-gray-500">
-            Backend API validates a standard UUID. Collaborators must provide their account User ID.
+            The address must already have an account. A raw user ID works too.
           </p>
         </form>
 

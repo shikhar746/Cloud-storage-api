@@ -13,7 +13,6 @@ import {
   Cloud,
 } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
-import { useAuth } from '../../context/AuthContext';
 import { formatBytes } from '../../utils/formatters';
 
 export const Sidebar: React.FC = () => {
@@ -28,8 +27,10 @@ export const Sidebar: React.FC = () => {
     setIsSettingsOpen,
     isSidebarOpen,
     closeSidebar,
+    canEdit,
+    uploadLimits,
+    sharedWithMe,
   } = useStorage();
-  const { apiMode } = useAuth();
 
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,7 @@ export const Sidebar: React.FC = () => {
       : 0;
 
   const trashCount = trashData.folders.length + trashData.files.length;
+  const sharedCount = sharedWithMe.folders.length + sharedWithMe.files.length;
 
   return (
     <>
@@ -97,8 +99,9 @@ export const Sidebar: React.FC = () => {
               </button>
             </div>
 
-            {/* "+ New" Action Button */}
-            <div className="relative">
+            {/* "+ New" Action Button — hidden while viewing a shared folder
+                read-only, where both actions would be refused server-side */}
+            <div className={`relative ${canEdit ? '' : 'hidden'}`}>
               <button
                 id="sidebar-new-btn"
                 type="button"
@@ -182,8 +185,7 @@ export const Sidebar: React.FC = () => {
                 {activeTab === 'files' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
               </button>
 
-              {apiMode === 'sandbox' && (
-                <button
+              <button
                   id="nav-shared"
                   onClick={() => {
                     setActiveTab('shared');
@@ -203,9 +205,14 @@ export const Sidebar: React.FC = () => {
                     />
                     <span>Shared with me</span>
                   </div>
-                  {activeTab === 'shared' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
-                </button>
-              )}
+                  {sharedCount > 0 ? (
+                    <span className="text-[11px] font-semibold bg-[#1a1a1a] border border-[#2a2a2a] text-gray-400 px-2 py-0.5 rounded-full">
+                      {sharedCount}
+                    </span>
+                  ) : (
+                    activeTab === 'shared' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />
+                  )}
+              </button>
 
               <button
                 id="nav-trash"
@@ -278,7 +285,9 @@ export const Sidebar: React.FC = () => {
               </>
             ) : (
               <p className="text-[11px] text-gray-500">
-                50 MB max per file · No total quota limit
+                Up to {formatBytes(uploadLimits.maxFileSizeBytes)} per file direct through the
+                API, {formatBytes(uploadLimits.maxDirectUploadBytes)} via resumable upload · No
+                total quota limit
               </p>
             )}
 

@@ -17,6 +17,7 @@ export const FileExplorerView: React.FC = () => {
     loading,
     setIsNewFolderOpen,
     uploadFiles,
+    canEdit,
   } = useStorage();
 
   // Filter files by category
@@ -94,10 +95,12 @@ export const FileExplorerView: React.FC = () => {
         <p className="text-sm text-gray-400 max-w-sm mt-1 mb-6">
           {selectedCategory !== 'all'
             ? `No ${selectedCategory} files in this folder.`
-            : 'This folder is empty. Upload files or create a subfolder to get started.'}
+            : canEdit
+            ? 'This folder is empty. Upload files or create a subfolder to get started.'
+            : 'This folder is empty, and it was shared with you as a viewer.'}
         </p>
 
-        <div className="flex items-center gap-3">
+        <div className={`items-center gap-3 ${canEdit ? 'flex' : 'hidden'}`}>
           <button
             id="empty-new-folder-btn"
             onClick={() => setIsNewFolderOpen(true)}

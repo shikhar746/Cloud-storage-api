@@ -26,6 +26,8 @@ export const ItemDetailsDrawer: React.FC = () => {
     setShareTarget,
     deleteFolder,
     deleteFile,
+    canEdit,
+    canShare,
     navigateToFolder,
     downloadFile,
   } = useStorage();
@@ -107,45 +109,51 @@ export const ItemDetailsDrawer: React.FC = () => {
           </button>
         )}
 
-        <button
-          onClick={() => setShareTarget({ type: selectedItem.type, item })}
-          className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#1a1a1a] text-gray-300 transition-colors"
-          title="Share"
-        >
-          <Share2 className="w-4 h-4 text-indigo-400" />
-          <span className="text-[10px] font-medium">Share</span>
-        </button>
+        {canShare && (
+          <button
+            onClick={() => setShareTarget({ type: selectedItem.type, item })}
+            className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#1a1a1a] text-gray-300 transition-colors"
+            title="Share"
+          >
+            <Share2 className="w-4 h-4 text-indigo-400" />
+            <span className="text-[10px] font-medium">Share</span>
+          </button>
+        )}
 
-        <button
-          onClick={() =>
-            setRenameTarget({
-              type: selectedItem.type,
-              id: item.id,
-              currentName: item.name,
-            })
-          }
-          className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#1a1a1a] text-gray-300 transition-colors"
-          title="Rename"
-        >
-          <Edit3 className="w-4 h-4 text-gray-400" />
-          <span className="text-[10px] font-medium">Rename</span>
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={() =>
+                setRenameTarget({
+                  type: selectedItem.type,
+                  id: item.id,
+                  currentName: item.name,
+                })
+              }
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#1a1a1a] text-gray-300 transition-colors"
+              title="Rename"
+            >
+              <Edit3 className="w-4 h-4 text-gray-400" />
+              <span className="text-[10px] font-medium">Rename</span>
+            </button>
 
-        <button
-          onClick={async () => {
-            if (isFolder) {
-              await deleteFolder(item.id);
-            } else {
-              await deleteFile(item.id);
-            }
-            setSelectedItem(null);
-          }}
-          className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-red-950/30 text-red-400 transition-colors"
-          title="Trash"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span className="text-[10px] font-medium">Trash</span>
-        </button>
+            <button
+              onClick={async () => {
+                if (isFolder) {
+                  await deleteFolder(item.id);
+                } else {
+                  await deleteFile(item.id);
+                }
+                setSelectedItem(null);
+              }}
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-red-950/30 text-red-400 transition-colors"
+              title="Trash"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="text-[10px] font-medium">Trash</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Metadata Fields */}
