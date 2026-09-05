@@ -66,6 +66,7 @@ export const env = {
     REFRESH_TOKEN_TTL: optionalDuration('REFRESH_TOKEN_TTL', '7d'),
     // google sign-in (optional — POST /api/auth/google is disabled without it)
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
+    GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),

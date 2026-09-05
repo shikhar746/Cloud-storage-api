@@ -12,7 +12,13 @@ import userRoutes from './routes/user.routes.js'
 
 const app = express()
 
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
+app.use(cors({
+  origin: [
+    'http://localhost:5173',                    // local Vite dev
+    'https://your-vite-frontend-domain.com'      // deployed frontend
+  ],
+  credentials: true   // needed if you're sending cookies/auth headers
+}))
 
 //--------->Auth routes<------------//
 
