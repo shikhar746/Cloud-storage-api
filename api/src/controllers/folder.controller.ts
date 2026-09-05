@@ -69,7 +69,7 @@ export async function getFolderController(req: Request, res: Response) {
   // 1. fetch the folder itself
   const { data: folder, error: folderError } = await supabase
     .from("folders")
-    .select("id, name, parent_id, created_at")
+    .select("id, name, parent_id, owner_id, created_at")
     .eq("id", id)
     .eq("is_deleted", false)
     .single()
@@ -81,7 +81,7 @@ export async function getFolderController(req: Request, res: Response) {
   }
     const { data: folders, error: foldersError } = await supabase
         .from("folders")
-        .select("id, name, parent_id, created_at")
+        .select("id, name, parent_id, owner_id, created_at")
         .eq("parent_id", id)
         .eq("is_deleted", false)
 
@@ -94,7 +94,7 @@ export async function getFolderController(req: Request, res: Response) {
 
     const { data: files, error: filesError } = await supabase
         .from("files")
-        .select("id, name, mime_type, size_bytes, created_at")
+        .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
         .eq("folder_id", id)
         .eq("is_deleted", false)
 
@@ -105,23 +105,26 @@ export async function getFolderController(req: Request, res: Response) {
         })
     }
 
+  // the caller's role here also covers the children: access to a shared folder
+  // is inherited by everything inside it (see getAccessRole)
   return res.status(200).json({
     folder,
     children: { folders, files },
+    role,
   })
 }
 
 export async function getRootController(req: Request, res: Response){
     const {data: folders, error: foldersError}= await supabase
         .from("folders")
-        .select("id, name, parent_id, created_at")
+        .select("id, name, parent_id, owner_id, created_at")
         .is("parent_id", null)
         .eq("owner_id", req.userId)
         .eq("is_deleted", false)
 
     const{data: files, error: filesError} = await supabase
         .from("files")
-        .select("id, name, mime_type, size_bytes, created_at")
+        .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
         .is("folder_id", null)
         .eq("owner_id", req.userId)
         .eq("is_deleted", false)
@@ -133,9 +136,11 @@ export async function getRootController(req: Request, res: Response){
         })
     }
 
+    // root only ever holds the caller's own items
     return res.status(200).json({
         folder: null,
         children: {folders, files},
+        role: 'owner',
     })
 }
 
@@ -332,7 +337,7 @@ export async function restoreFolderController(req: Request, res: Response) {
 export async function getTrashController(req: Request, res: Response) {
     const { data: folders, error: foldersError } = await supabase
         .from("folders")
-        .select("id, name, parent_id, created_at")
+        .select("id, name, parent_id, owner_id, created_at")
         .eq("owner_id", req.userId)
         .eq("is_deleted", true)
 
@@ -345,7 +350,7 @@ export async function getTrashController(req: Request, res: Response) {
 
     const { data: files, error: filesError } = await supabase
         .from("files")
-        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
         .eq("owner_id", req.userId)
         .eq("is_deleted", true)
 
@@ -446,7 +451,7 @@ export async function updateFolderController(req: Request, res: Response) {
         .update(updates)
         .eq("id", id)
         .eq("is_deleted", false)
-        .select("id, name, parent_id, created_at")
+        .select("id, name, parent_id, owner_id, created_at")
         .single()
 
     if (updateError) {

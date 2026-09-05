@@ -75,7 +75,7 @@ export async function uploadFileController(req: Request, res: Response) {
       owner_id: req.userId,
       folder_id: folderId,
     })
-    .select("id, name, mime_type, size_bytes, folder_id, created_at")
+    .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
     .single()
 
   if (insertError) {
@@ -101,7 +101,7 @@ export async function getFileController(req:Request, res: Response){
 
     const {data: file, error: fileError } = await supabase
         .from("files")
-        .select("id, name, mime_type, size_bytes, storage_key, folder_id, created_at")
+        .select("id, name, mime_type, size_bytes, storage_key, folder_id, owner_id, created_at")
         .eq("id", id)
         .eq("is_deleted", false)
         .single()
@@ -127,6 +127,7 @@ export async function getFileController(req:Request, res: Response){
     return res.status(200).json({
         file: safeFile,
         signedUrl: signed.signedUrl,
+        role,
     })
 }
 
@@ -151,18 +152,29 @@ export async function deleteFileController(req: Request, res: Response) {
 }
 
 export async function listFileController (req: Request, res: Response){
-  const {folderId} = req.query
+  // a repeated ?folderId= arrives as an array — only a single value is meaningful
+  const folderId = typeof req.query.folderId === "string" ? req.query.folderId : null
 
   let query = supabase
     .from("files")
-    .select("id, name, mime_type, size_bytes, folder_id, created_at")
-    .eq("owner_id", req.userId)
+    .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
     .eq("is_deleted", false)
     .order("created_at", { ascending: false })
 
-  query = folderId  
-    ? query.eq("folder_id", folderId)
-    : query.is("folder_id", null)
+  if (folderId) {
+    // listing inside a folder follows the same access rules as opening it,
+    // so a shared folder lists its files too
+    const role = await getAccessRole(req.userId, 'folder', folderId)
+    if (!role)
+      return res.status(404).json({
+        error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+      })
+
+    query = query.eq("folder_id", folderId)
+  } else {
+    // no folder means the caller's own root — never anyone else's
+    query = query.is("folder_id", null).eq("owner_id", req.userId)
+  }
 
   const {data:files, error} = await query
 
@@ -211,7 +223,7 @@ export async function updateFileController(req: Request, res: Response) {
         .update(updates)
         .eq("id", id)
         .eq("is_deleted", false)
-        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
         .single()
 
     if (fileError || !file)
@@ -312,7 +324,7 @@ export async function restoreFileController(req: Request, res: Response){
         .eq("id", id)
         .eq("owner_id", req.userId)
         .eq("is_deleted", true)
-        .select("id, name, mime_type, size_bytes, folder_id, created_at")
+        .select("id, name, mime_type, size_bytes, folder_id, owner_id, created_at")
         .single()
 
     if (fileError || !file)

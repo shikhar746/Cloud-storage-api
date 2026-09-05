@@ -15,7 +15,7 @@ export async function searchController(req: Request, res: Response) {
 
   const { data: folders, error: foldersError } = await supabase
     .from('folders')
-    .select('id, name, parent_id, created_at')
+    .select('id, name, parent_id, owner_id, created_at')
     .eq('owner_id', req.userId)
     .eq('is_deleted', false)
     .ilike('name', pattern)
@@ -30,7 +30,7 @@ export async function searchController(req: Request, res: Response) {
 
   const { data: files, error: filesError } = await supabase
     .from('files')
-    .select('id, name, mime_type, size_bytes, folder_id, created_at')
+    .select('id, name, mime_type, size_bytes, folder_id, owner_id, created_at')
     .eq('owner_id', req.userId)
     .eq('is_deleted', false)
     .ilike('name', pattern)
