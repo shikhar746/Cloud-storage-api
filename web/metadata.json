@@ -1,0 +1,6 @@
+{
+  "name": "Cloud Storage Explorer",
+  "description": "Frontend web client for Cloud Storage API with authentication, file and folder navigation, uploads, sharing, and trash management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
