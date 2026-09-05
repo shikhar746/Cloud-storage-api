@@ -1,4 +1,4 @@
-import { User, Folder, FileItem, ShareItem, TrashResponse, FolderContentResponse, SearchResponse } from '../types/storage';
+import { User, Folder, FileItem, ShareItem, TrashResponse, FolderContentResponse, SearchResponse, BreadcrumbItem } from '../types/storage';
 
 const STORAGE_USERS_KEY = 'csa_mock_users';
 const STORAGE_CURRENT_USER_KEY = 'csa_mock_current_user';
@@ -312,6 +312,26 @@ export class MockStorageService {
         files: childFiles,
       },
     };
+  }
+
+  /** Ancestor chain ending at this folder, mirroring GET /api/folders/:id/path. */
+  async getFolderPath(userId: string, folderId: string): Promise<BreadcrumbItem[]> {
+    const data = this.getUserData(userId);
+    const path: BreadcrumbItem[] = [];
+    const seen = new Set<string>();
+    let currentId: string | null = folderId;
+
+    while (currentId && !seen.has(currentId)) {
+      seen.add(currentId);
+      const folder: Folder | undefined = data.folders.find(
+        (f) => f.id === currentId && !f.is_deleted
+      );
+      if (!folder) break;
+      path.unshift({ id: folder.id, name: folder.name });
+      currentId = folder.parent_id;
+    }
+
+    return path;
   }
 
   async createFolder(userId: string, name: string, parentId?: string | null): Promise<Folder> {

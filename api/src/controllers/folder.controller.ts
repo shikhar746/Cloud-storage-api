@@ -13,15 +13,10 @@ export async function createFolderController(req:Request, res:Response){
     }
     const parentId = data.parentId ?? null
     if(parentId){
-        const { data: parent, error: parentError } = await supabase
-            .from('folders')
-            .select("id")
-            .eq('id', parentId)
-            .eq('owner_id', req.userId)
-            .eq("is_deleted", false)
-            .single()
-
-        if (parentError || !parent) {
+        // editors on a shared folder may create subfolders in it, same rule as
+        // renaming or moving — see updateFolderController
+        const parentRole = await getAccessRole(req.userId, 'folder', parentId)
+        if (parentRole !== 'owner' && parentRole !== 'editor') {
             return res.status(404).json({
                 error: { code: "PARENT_NOT_FOUND", message: "Parent folder not found" },
             })
@@ -376,6 +371,146 @@ export async function getTrashController(req: Request, res: Response) {
         folders: topLevelFolders,
         files: topLevelFiles,
     })
+}
+
+export async function getFolderPathController(req: Request, res: Response) {
+    const { id } = req.params
+
+    const role = await getAccessRole(req.userId, 'folder', id as string)
+    if (!role) {
+        return res.status(404).json({
+            error: { code: "FOLDER_NOT_FOUND", message: "Folder not found" },
+        })
+    }
+
+    // climb to the root, but only through folders the caller may actually see:
+    // for someone working inside a shared subtree the path stops at the folder
+    // that was shared, not at the owner's real root
+    const MAX_DEPTH = 50
+    const path: Array<{ id: string; name: string }> = []
+    let currentId: string | null = id as string
+    let depth = 0
+
+    while (currentId && depth < MAX_DEPTH) {
+        // pinned to a local so the query's inferred type doesn't depend on
+        // currentId, which this loop is about to reassign from that same query
+        const lookupId: string = currentId
+
+        const { data: folder } = await supabase
+            .from("folders")
+            .select("id, name, parent_id, owner_id")
+            .eq("id", lookupId)
+            .eq("is_deleted", false)
+            .single()
+
+        if (!folder) break
+
+        // owning it settles the question without another round trip
+        if (folder.owner_id !== req.userId) {
+            const ancestorRole = await getAccessRole(req.userId, 'folder', folder.id)
+            if (!ancestorRole) break
+        }
+
+        path.unshift({ id: folder.id, name: folder.name })
+        currentId = folder.parent_id
+        depth++
+    }
+
+    return res.status(200).json({ path, role })
+}
+
+export async function emptyTrashController(req: Request, res: Response) {
+    const { data: deletedFolders, error: foldersError } = await supabase
+        .from("folders")
+        .select("id")
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+
+    if (foldersError) {
+        console.error("empty trash folder lookup failed", foldersError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to empty trash" },
+        })
+    }
+
+    const deletedFolderIds = deletedFolders.map(f => f.id)
+
+    const { data: trashedFiles, error: filesError } = await supabase
+        .from("files")
+        .select("id, storage_key")
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+
+    if (filesError) {
+        console.error("empty trash file lookup failed", filesError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Failed to empty trash" },
+        })
+    }
+
+    // dropping a folder row cascades to its files, so any file living in a
+    // trashed folder is about to disappear too — collect its blob as well, or
+    // the row goes and the object stays behind forever
+    const storageKeys = new Set(trashedFiles.map(f => f.storage_key))
+
+    if (deletedFolderIds.length > 0) {
+        const { data: nested, error: nestedError } = await supabase
+            .from("files")
+            .select("storage_key")
+            .eq("owner_id", req.userId)
+            .in("folder_id", deletedFolderIds)
+
+        if (nestedError) {
+            console.error("empty trash nested file lookup failed", nestedError)
+            return res.status(500).json({
+                error: { code: "INTERNAL_ERROR", message: "Failed to empty trash" },
+            })
+        }
+
+        for (const f of nested) storageKeys.add(f.storage_key)
+    }
+
+    if (storageKeys.size > 0) {
+        const { error: storageError } = await supabase.storage
+            .from(env.SUPABASE_STORAGE_BUCKET)
+            .remove([...storageKeys])
+
+        if (storageError) {
+            // log and continue — a stuck trash is worse than a logged orphan,
+            // same call as permanentDeleteFolderController makes
+            console.error("empty trash storage delete failed", storageError)
+        }
+    }
+
+    const { error: fileDeleteError } = await supabase
+        .from("files")
+        .delete()
+        .eq("owner_id", req.userId)
+        .eq("is_deleted", true)
+
+    if (fileDeleteError) {
+        console.error("empty trash file delete failed", fileDeleteError)
+        return res.status(500).json({
+            error: { code: "DELETE_FAILED", message: "Failed to empty trash" },
+        })
+    }
+
+    if (deletedFolderIds.length > 0) {
+        const { error: folderDeleteError } = await supabase
+            .from("folders")
+            .delete()
+            .in("id", deletedFolderIds)
+            .eq("owner_id", req.userId)
+
+        if (folderDeleteError) {
+            console.error("empty trash folder delete failed", folderDeleteError)
+            return res.status(500).json({
+                error: { code: "DELETE_FAILED", message: "Failed to empty trash" },
+            })
+        }
+    }
+
+    return res.status(204).send()
 }
 
 export async function updateFolderController(req: Request, res: Response) {

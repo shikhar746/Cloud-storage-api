@@ -8,6 +8,7 @@ import fileRoutes from './routes/file.routes.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import searchRoutes from "./routes/search.routes.js"
 import shareRoutes from './routes/share.routes.js'
+import userRoutes from './routes/user.routes.js'
 
 const app = express()
 
@@ -18,7 +19,15 @@ app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
 app.get('/', (_req, res) => {
-    res.json({ status: 'ok' })
+    // the upload limits ride along with the health check so the web client can
+    // pick its upload path from the server's numbers instead of hard-coding them
+    res.json({
+        status: 'ok',
+        limits: {
+            maxFileSizeBytes: env.MAX_FILE_SIZE_BYTES,
+            maxDirectUploadBytes: env.MAX_DIRECT_UPLOAD_BYTES,
+        },
+    })
 })
 app.use('/api/auth', authRoutes)
 
@@ -31,6 +40,8 @@ app.use("/api/files", fileRoutes)
 app.use('/api/search', searchRoutes)
 
 app.use('/api/shares', shareRoutes)
+
+app.use('/api/users', userRoutes)
 
 app.use((_req, res) => {
     res.status(404).json({

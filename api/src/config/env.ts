@@ -26,6 +26,14 @@ function optionalStringArray(name: string, fallback: string[]): string[] {
     return v ? v.split(',').map((s) => s.trim()).filter(Boolean) : fallback
 }
 
+// optionalString(name)
+// helper for settings a deployment may simply not use — Google sign-in is off
+// unless a client id is configured, so this returns undefined instead of throwing
+function optionalString(name: string): string | undefined {
+    const v = process.env[name]?.trim()
+    return v ? v : undefined
+}
+
 const DURATION_UNIT_MS: Record<string, number> = {
     s: 1_000,
     m: 60_000,
@@ -56,11 +64,18 @@ export const env = {
     REFRESH_SECRET: required('REFRESH_SECRET'),
     ACCESS_TOKEN_TTL: optionalDuration('ACCESS_TOKEN_TTL', '15m'),
     REFRESH_TOKEN_TTL: optionalDuration('REFRESH_TOKEN_TTL', '7d'),
+    // google sign-in (optional — POST /api/auth/google is disabled without it)
+    GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
     SUPABASE_STORAGE_BUCKET: required('SUPABASE_STORAGE_BUCKET'),
 
     // uploads
+    // anything at or under this goes through the API as multipart (multer buffers
+    // it in memory); anything larger must use the signed-URL path straight to storage
     MAX_FILE_SIZE_BYTES: optionalNumber('MAX_FILE_SIZE_BYTES', 52_428_800),
+    // ceiling for the direct-to-storage path — must not exceed the bucket's own
+    // file size limit, or the signed upload is rejected by storage instead
+    MAX_DIRECT_UPLOAD_BYTES: optionalNumber('MAX_DIRECT_UPLOAD_BYTES', 5_368_709_120),
 } as const

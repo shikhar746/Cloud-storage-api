@@ -2,11 +2,10 @@ import React, { useRef } from 'react';
 import {
   LayoutGrid,
   List,
-  ArrowUpDown,
   RotateCw,
   FolderPlus,
   UploadCloud,
-  Filter,
+  Eye,
 } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
 import { FileCategory, SortConfig } from '../../types/storage';
@@ -23,6 +22,7 @@ export const ExplorerToolbar: React.FC = () => {
     loading,
     setIsNewFolderOpen,
     uploadFiles,
+    canEdit,
   } = useStorage();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,35 +76,49 @@ export const ExplorerToolbar: React.FC = () => {
 
       {/* Right Actions: Refresh, Sort, View Toggle, Upload, New Folder */}
       <div className="flex items-center justify-between sm:justify-end gap-2">
-        {/* Quick Add Buttons for Mobile/Tablet */}
+        {/* Quick Add Buttons for Mobile/Tablet — hidden for viewers, whose
+            create and upload calls the API would refuse anyway */}
         <div className="flex items-center gap-1.5">
-          <button
-            id="toolbar-new-folder-btn"
-            onClick={() => setIsNewFolderOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#1f1f1f] bg-[#141414] text-xs font-medium text-gray-300 hover:bg-[#1a1a1a] hover:text-white transition-colors"
-            title="Create Folder"
-          >
-            <FolderPlus className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden md:inline">Folder</span>
-          </button>
+          {canEdit ? (
+            <>
+              <button
+                id="toolbar-new-folder-btn"
+                onClick={() => setIsNewFolderOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#1f1f1f] bg-[#141414] text-xs font-medium text-gray-300 hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                title="Create Folder"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-amber-500" />
+                <span className="hidden md:inline">Folder</span>
+              </button>
 
-          <button
-            id="toolbar-upload-btn"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#1f1f1f] bg-[#141414] text-xs font-medium text-gray-300 hover:bg-[#1a1a1a] hover:text-white transition-colors"
-            title="Upload Files"
-          >
-            <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden md:inline">Upload</span>
-          </button>
+              <button
+                id="toolbar-upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#1f1f1f] bg-[#141414] text-xs font-medium text-gray-300 hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                title="Upload Files"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden md:inline">Upload</span>
+              </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleUploadChange}
-          />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleUploadChange}
+              />
+            </>
+          ) : (
+            <span
+              id="toolbar-readonly-badge"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-indigo-800/40 bg-indigo-950/30 text-xs font-medium text-indigo-300"
+              title="This folder was shared with you as a viewer"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>View only</span>
+            </span>
+          )}
         </div>
 
         <div className="h-4 w-[1px] bg-[#1f1f1f] hidden sm:block mx-1" />

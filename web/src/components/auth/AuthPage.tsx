@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { Cloud, Lock, Mail, User, ArrowRight, ShieldCheck, Database, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { Cloud, Lock, Mail, User, ArrowRight, Database, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
 interface AuthPageProps {
   onOpenSettings?: () => void;
 }
 
 export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
-  const { login, register, loginDemo, apiMode, baseUrl } = useAuth();
+  const { login, register, loginWithGoogle, apiMode, baseUrl } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
@@ -55,16 +56,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setSubmitting(true);
-    try {
-      await loginDemo();
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to sign in to demo');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      setErrorMessage(null);
+      setSubmitting(true);
+      try {
+        await loginWithGoogle(credential);
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : 'Google sign-in failed');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [loginWithGoogle]
+  );
+
+  const handleGoogleError = useCallback((message: string) => {
+    setErrorMessage(message);
+  }, []);
 
   return (
     <div
@@ -210,20 +219,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
               <div className="w-full border-t border-[#1f1f1f]" />
             </div>
             <div className="relative flex justify-center text-[10px] sm:text-xs uppercase">
-              <span className="bg-[#111111] px-2 text-gray-500 font-medium">or evaluate instantly</span>
+              <span className="bg-[#111111] px-2 text-gray-500 font-medium">or continue with</span>
             </div>
           </div>
 
-          <button
-            id="auth-demo-btn"
-            type="button"
-            onClick={handleDemoLogin}
+          <GoogleSignInButton
+            onCredential={handleGoogleCredential}
+            onError={handleGoogleError}
             disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#262626] bg-[#161616] py-1.5 sm:py-2 px-4 text-xs sm:text-sm font-medium text-gray-200 hover:bg-[#1c1c1c] hover:text-white transition-colors cursor-pointer"
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Continue with Demo Workspace</span>
-          </button>
+          />
 
           {/* Backend target status banner */}
           <div className="mt-2.5 pt-2 sm:mt-3.5 sm:pt-2.5 border-t border-[#1f1f1f] flex items-center justify-between text-[11px] sm:text-xs text-gray-500">

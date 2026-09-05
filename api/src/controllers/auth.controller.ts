@@ -1,10 +1,11 @@
 import type { Request, Response } from "express";
 import bcrypt from "bcryptjs"
 import { registerSchema } from "../schemas/auth.schema.js";
-import { loginSchema } from "../schemas/auth.schema.js"
+import { loginSchema, googleAuthSchema } from "../schemas/auth.schema.js"
 import { supabase } from "../lib/supabase.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/tokens.js";
 import { setAuthCookies, clearAuthCookies } from "../lib/cookies.js";
+import { verifyGoogleIdToken, isGoogleSignInEnabled } from "../lib/google.js";
 
 
 
@@ -68,7 +69,11 @@ export const loginController = async (req: Request, res: Response) => {
         })
     }
 
-    const ok = await bcrypt.compare(data.password, user.password_hash)
+    // an account created through Google has no password_hash — there is nothing
+    // to compare against, and bcrypt throws on a null hash
+    const ok = user.password_hash
+        ? await bcrypt.compare(data.password, user.password_hash)
+        : false
     if (!ok) {
         return res.status(401).json({
             error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" },
@@ -83,6 +88,104 @@ export const loginController = async (req: Request, res: Response) => {
         user: { id: user.id, email: user.email, name: user.name },
     })
 
+}
+
+export const googleAuthController = async (req: Request, res: Response) => {
+    if (!isGoogleSignInEnabled()) {
+        return res.status(501).json({
+            error: {
+                code: "GOOGLE_SIGNIN_DISABLED",
+                message: "Google sign-in is not configured on this server",
+            },
+        })
+    }
+
+    const { success, error, data } = googleAuthSchema.safeParse(req.body)
+    if (!success) {
+        return res.status(400).json({
+            error: { code: "VALIDATION_ERROR", issues: error.issues },
+        })
+    }
+
+    const profile = await verifyGoogleIdToken(data.credential)
+    if (!profile) {
+        return res.status(401).json({
+            error: { code: "INVALID_GOOGLE_TOKEN", message: "Could not verify Google sign-in" },
+        })
+    }
+
+    // 1. returning Google user — matched on the stable "sub", not the email,
+    //    because a Google address can be reassigned but the sub never is
+    const { data: byGoogleId } = await supabase
+        .from("users")
+        .select("id, email, name")
+        .eq("google_id", profile.googleId)
+        .maybeSingle()
+
+    if (byGoogleId) {
+        const accessToken = signAccessToken(byGoogleId.id)
+        const refreshToken = signRefreshToken(byGoogleId.id)
+        setAuthCookies(res, accessToken, refreshToken)
+        return res.status(200).json({ user: byGoogleId })
+    }
+
+    // 2. same address already registered with a password — link the two so the
+    //    user keeps their existing files instead of getting a second account.
+    //    Safe because we only get here for a Google-verified address.
+    const { data: byEmail } = await supabase
+        .from("users")
+        .select("id, email, name, google_id")
+        .eq("email", profile.email)
+        .maybeSingle()
+
+    if (byEmail) {
+        const { data: linked, error: linkError } = await supabase
+            .from("users")
+            .update({
+                google_id: profile.googleId,
+                image_url: profile.imageUrl,
+            })
+            .eq("id", byEmail.id)
+            .select("id, email, name")
+            .single()
+
+        if (linkError || !linked) {
+            console.error("google link failed", linkError)
+            return res.status(500).json({
+                error: { code: "INTERNAL_ERROR", message: "Could not sign in with Google" },
+            })
+        }
+
+        const accessToken = signAccessToken(linked.id)
+        const refreshToken = signRefreshToken(linked.id)
+        setAuthCookies(res, accessToken, refreshToken)
+        return res.status(200).json({ user: linked })
+    }
+
+    // 3. brand new account — no password_hash, Google is the only way in
+    const { data: created, error: insertError } = await supabase
+        .from("users")
+        .insert({
+            email: profile.email,
+            name: profile.name,
+            google_id: profile.googleId,
+            image_url: profile.imageUrl,
+        })
+        .select("id, email, name")
+        .single()
+
+    if (insertError || !created) {
+        console.error("google register failed", insertError)
+        return res.status(500).json({
+            error: { code: "INTERNAL_ERROR", message: "Could not create account" },
+        })
+    }
+
+    const accessToken = signAccessToken(created.id)
+    const refreshToken = signRefreshToken(created.id)
+    setAuthCookies(res, accessToken, refreshToken)
+
+    return res.status(201).json({ user: created })
 }
 
 export const meController = async (req: Request, res: Response) => {

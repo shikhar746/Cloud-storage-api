@@ -7,21 +7,22 @@ interface DragDropZoneProps {
 }
 
 export const DragDropZone: React.FC<DragDropZoneProps> = ({ children }) => {
-  const { uploadFiles, breadcrumbs } = useStorage();
+  const { uploadFiles, breadcrumbs, canEdit } = useStorage();
   const [isDragging, setIsDragging] = useState(false);
 
   const currentName = breadcrumbs[breadcrumbs.length - 1]?.name || 'Storage';
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.types.includes('Files')) {
+    // a viewer has nowhere to drop: the upload would be refused server-side
+    if (canEdit && e.dataTransfer.types.includes('Files')) {
       setIsDragging(true);
     }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.types.includes('Files')) {
+    if (canEdit && e.dataTransfer.types.includes('Files')) {
       setIsDragging(true);
     }
   };
@@ -36,6 +37,7 @@ export const DragDropZone: React.FC<DragDropZoneProps> = ({ children }) => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (!canEdit) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       uploadFiles(e.dataTransfer.files);
     }

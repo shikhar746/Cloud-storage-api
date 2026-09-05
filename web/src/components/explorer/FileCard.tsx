@@ -27,6 +27,8 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
     selectedItem,
     setSelectedItem,
     downloadFile,
+    canEdit,
+    canShare,
   } = useStorage();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -58,7 +60,7 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
   return (
     <div
       id={`file-card-${file.id}`}
-      draggable
+      draggable={canEdit}
       onDragStart={handleDragStart}
       onClick={() => setSelectedItem({ type: 'file', data: file })}
       onDoubleClick={() => setPreviewFile(file)}
@@ -148,51 +150,57 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
                 <Download className="w-3.5 h-3.5 text-gray-500" />
                 <span>Download</span>
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMenuOpen(false);
-                  setShareTarget({ type: 'file', item: file });
-                }}
-                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-              >
-                <Share2 className="w-3.5 h-3.5 text-gray-500" />
-                <span>Share</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMenuOpen(false);
-                  setRenameTarget({ type: 'file', id: file.id, currentName: file.name });
-                }}
-                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-gray-500" />
-                <span>Rename</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMenuOpen(false);
-                  setMoveTarget({ type: 'file', id: file.id, name: file.name });
-                }}
-                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
-              >
-                <FolderInput className="w-3.5 h-3.5 text-gray-500" />
-                <span>Move To...</span>
-              </button>
-              <div className="border-t border-[#1f1f1f] my-1" />
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setIsMenuOpen(false);
-                  await deleteFile(file.id);
-                }}
-                className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-red-400 hover:bg-red-950/30 font-medium"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                <span>Move to Trash</span>
-              </button>
+              {canShare && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    setShareTarget({ type: 'file', item: file });
+                  }}
+                  className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Share</span>
+                </button>
+              )}
+              {canEdit && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      setRenameTarget({ type: 'file', id: file.id, currentName: file.name });
+                    }}
+                    className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Rename</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      setMoveTarget({ type: 'file', id: file.id, name: file.name });
+                    }}
+                    className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-gray-300 hover:bg-[#1a1a1a] hover:text-white font-medium"
+                  >
+                    <FolderInput className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Move To...</span>
+                  </button>
+                  <div className="border-t border-[#1f1f1f] my-1" />
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      await deleteFile(file.id);
+                    }}
+                    className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-red-400 hover:bg-red-950/30 font-medium"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <span>Move to Trash</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

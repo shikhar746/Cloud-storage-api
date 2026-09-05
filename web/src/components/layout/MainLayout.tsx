@@ -8,6 +8,7 @@ import { FileExplorerView } from '../explorer/FileExplorerView';
 import { SharedView } from '../explorer/SharedView';
 import { TrashView } from '../explorer/TrashView';
 import { ItemDetailsDrawer } from '../explorer/ItemDetailsDrawer';
+import { UploadProgressPanel } from '../explorer/UploadProgressPanel';
 
 import { NewFolderModal } from '../modals/NewFolderModal';
 import { RenameModal } from '../modals/RenameModal';
@@ -57,6 +58,9 @@ export const MainLayout: React.FC = () => {
       <ShareModal />
       <FilePreviewModal />
       <ApiConfigModal />
+
+      {/* Live upload feedback, floating over whichever tab is open */}
+      <UploadProgressPanel />
     </div>
   );
 };

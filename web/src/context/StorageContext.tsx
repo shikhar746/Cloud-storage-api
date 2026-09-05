@@ -9,8 +9,12 @@ import {
   SortConfig,
   TrashResponse,
   SearchResponse,
+  SharedWithMeResponse,
+  AccessRole,
+  UploadTask,
+  UploadLimits,
 } from '../types/storage';
-import { api } from '../services/api';
+import { api, FALLBACK_UPLOAD_LIMITS } from '../services/api';
 import { mockStorage } from '../services/mockStorage';
 import { useAuth } from './AuthContext';
 
@@ -34,6 +38,21 @@ interface StorageContextType {
   searchResults: SearchResponse | null;
   selectedItem: { type: 'file' | 'folder'; data: FileItem | Folder } | null;
   setSelectedItem: (item: { type: 'file' | 'folder'; data: FileItem | Folder } | null) => void;
+
+  // Access control: what the caller may do in the folder they are looking at
+  currentFolderRole: AccessRole;
+  canEdit: boolean;
+  canShare: boolean;
+
+  // Shared with me
+  sharedWithMe: SharedWithMeResponse;
+  fetchSharedWithMe: () => Promise<void>;
+  sharedLoading: boolean;
+
+  // Uploads in flight
+  uploads: UploadTask[];
+  uploadLimits: UploadLimits;
+  clearFinishedUploads: () => void;
   
   // Navigation
   navigateToFolder: (folderId: string | null, folderName?: string) => Promise<void>;
@@ -87,6 +106,13 @@ interface StorageContextType {
 
 const StorageContext = createContext<StorageContextType | undefined>(undefined);
 
+/** Rounded byte size for user-facing limit messages. */
+function formatLimit(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${Number(gb.toFixed(gb >= 10 ? 0 : 1))} GB`;
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
 export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, apiMode } = useAuth();
 
@@ -109,6 +135,15 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [selectedItem, setSelectedItem] = useState<{ type: 'file' | 'folder'; data: FileItem | Folder } | null>(null);
 
+  // 'owner' until the API says otherwise: root only ever holds your own items
+  const [currentFolderRole, setCurrentFolderRole] = useState<AccessRole>('owner');
+
+  const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeResponse>({ folders: [], files: [] });
+  const [sharedLoading, setSharedLoading] = useState(false);
+
+  const [uploads, setUploads] = useState<UploadTask[]>([]);
+  const [uploadLimits, setUploadLimits] = useState<UploadLimits>(FALLBACK_UPLOAD_LIMITS);
+
   // Trash state
   const [trashData, setTrashData] = useState<TrashResponse>({ folders: [], files: [] });
 
@@ -128,6 +163,10 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return true;
   });
 
+  // viewers get a read-only explorer: every mutating call would 404 or 403
+  const canEdit = currentFolderRole === 'owner' || currentFolderRole === 'editor';
+  const canShare = currentFolderRole === 'owner';
+
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
   }, []);
@@ -146,7 +185,7 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
     }
     if (apiMode === 'live') {
-      // Live API enforces no 15 GB total quota, only a 50 MB per-file limit.
+      // Live API enforces no total quota, only a per-file ceiling.
       // Sum loaded files size_bytes client-side for honest usage.
       const breakdown = { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 };
       let usedBytes = 0;
@@ -176,15 +215,14 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoading(true);
       setError(null);
       try {
-        if (folderId === null) {
-          const res = await api.getRoot(user.id);
-          setFolders(res.children.folders || []);
-          setFiles(res.children.files || []);
-        } else {
-          const res = await api.getFolder(user.id, folderId);
-          setFolders(res.children.folders || []);
-          setFiles(res.children.files || []);
-        }
+        const res =
+          folderId === null
+            ? await api.getRoot(user.id)
+            : await api.getFolder(user.id, folderId);
+        setFolders(res.children.folders || []);
+        setFiles(res.children.files || []);
+        // sandbox and older servers report no role — treat that as full access
+        setCurrentFolderRole(res.role ?? 'owner');
       } catch (err) {
         console.error('Failed loading folder content:', err);
         setError(err instanceof Error ? err.message : 'Failed to load folder');
@@ -194,6 +232,32 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
     [user]
   );
+
+  // The server owns the upload thresholds; ask it rather than hard-coding them
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    api.getLimits().then((l) => {
+      if (mounted) setUploadLimits(l);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [user, apiMode]);
+
+  const fetchSharedWithMe = useCallback(async () => {
+    if (!user) return;
+    setSharedLoading(true);
+    try {
+      const data = await api.getSharedWithMe(user.id);
+      setSharedWithMe(data);
+    } catch (err) {
+      console.error('Failed to load shared items:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load shared items');
+    } finally {
+      setSharedLoading(false);
+    }
+  }, [user]);
 
   // Load trash
   const fetchTrash = useCallback(async () => {
@@ -225,31 +289,63 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => clearTimeout(timer);
   }, [searchQuery, user]);
 
+  // one pass on sign-in so the sidebar badge is right before the tab is opened
+  useEffect(() => {
+    if (user) fetchSharedWithMe();
+  }, [user, fetchSharedWithMe]);
+
   // Initial load or user change
   useEffect(() => {
     if (user && activeTab === 'files') {
       loadFolderContent(currentFolderId);
     } else if (user && activeTab === 'trash') {
       fetchTrash();
+    } else if (user && activeTab === 'shared') {
+      fetchSharedWithMe();
     }
-  }, [user, currentFolderId, activeTab, loadFolderContent, fetchTrash]);
+  }, [user, currentFolderId, activeTab, loadFolderContent, fetchTrash, fetchSharedWithMe]);
 
   // Navigation handlers
   const navigateToFolder = async (folderId: string | null, folderName?: string) => {
     setCurrentFolderId(folderId);
     setSelectedItem(null);
+
     if (folderId === null) {
       setBreadcrumbs([{ id: null, name: 'My Storage' }]);
-    } else {
-      setBreadcrumbs((prev) => {
-        // If already in breadcrumbs, slice up to it
-        const index = prev.findIndex((b) => b.id === folderId);
-        if (index !== -1) {
-          return prev.slice(0, index + 1);
-        }
-        return [...prev, { id: folderId, name: folderName || 'Folder' }];
-      });
+      await loadFolderContent(null);
+      return;
     }
+
+    const trail = breadcrumbs;
+    const existingIndex = trail.findIndex((b) => b.id === folderId);
+    const isChildOfCurrent = folders.some((f) => f.id === folderId);
+
+    if (existingIndex !== -1) {
+      // walking back up the trail we already have
+      setBreadcrumbs(trail.slice(0, existingIndex + 1));
+    } else if (isChildOfCurrent) {
+      // stepping into something listed right here
+      setBreadcrumbs([...trail, { id: folderId, name: folderName || 'Folder' }]);
+    } else {
+      // a jump from search or the shared list — the trail we hold says nothing
+      // about where this folder sits, so ask the server for the real chain
+      setBreadcrumbs([
+        { id: null, name: 'My Storage' },
+        { id: folderId, name: folderName || 'Folder' },
+      ]);
+      if (user) {
+        try {
+          const path = await api.getFolderPath(user.id, folderId);
+          if (path.length > 0) {
+            setBreadcrumbs([{ id: null, name: 'My Storage' }, ...path]);
+          }
+        } catch (err) {
+          // a shared folder whose ancestors you cannot see still opens fine
+          console.warn('Could not resolve folder path', err);
+        }
+      }
+    }
+
     await loadFolderContent(folderId);
   };
 
@@ -264,6 +360,8 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await loadFolderContent(currentFolderId);
     } else if (activeTab === 'trash') {
       await fetchTrash();
+    } else if (activeTab === 'shared') {
+      await fetchSharedWithMe();
     }
   };
 
@@ -308,27 +406,82 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await refreshCurrentFolder();
   };
 
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB backend limit
+  const clearFinishedUploads = useCallback(() => {
+    setUploads((prev) => prev.filter((u) => u.status === 'pending' || u.status === 'uploading'));
+  }, []);
 
   const uploadFiles = async (fileList: FileList | File[]) => {
     if (!user) throw new Error('Not authenticated');
+
     const list = Array.from(fileList);
+    if (list.length === 0) return;
+
+    // the thresholds come from the server, so raising MAX_FILE_SIZE_BYTES there
+    // is enough — the browser does not need a matching constant
+    const limits = await api.getLimits();
+    setUploadLimits(limits);
+
+    const newId = () =>
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `up_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    const tasks: UploadTask[] = list.map((file) => ({
+      id: newId(),
+      name: file.name,
+      size: file.size,
+      loaded: 0,
+      status: 'pending',
+      method: file.size > limits.maxFileSizeBytes ? 'direct' : 'multipart',
+    }));
+
+    setUploads((prev) => [...prev, ...tasks]);
+    setError(null);
     setLoading(true);
+
+    const patch = (id: string, changes: Partial<UploadTask>) => {
+      setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...changes } : u)));
+    };
+
     const failures: string[] = [];
 
     try {
-      for (const file of list) {
-        if (file.size > MAX_FILE_SIZE) {
-          failures.push(`"${file.name}" exceeds 50 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i];
+        const task = tasks[i];
+
+        if (file.size > limits.maxDirectUploadBytes) {
+          const message = `exceeds the ${formatLimit(limits.maxDirectUploadBytes)} maximum`;
+          patch(task.id, { status: 'error', error: message });
+          failures.push(`"${file.name}" ${message}`);
           continue;
         }
+
+        patch(task.id, { status: 'uploading' });
+        const onProgress = (loaded: number) => patch(task.id, { loaded });
+
         try {
-          await api.uploadFile(user.id, file, currentFolderId);
+          if (task.method === 'direct') {
+            // too big for the API to buffer — straight to storage, then register
+            await api.uploadFileDirect(user.id, file, currentFolderId, onProgress);
+          } else {
+            await api.uploadFile(user.id, file, currentFolderId, onProgress);
+          }
+          patch(task.id, { status: 'done', loaded: file.size });
         } catch (err: any) {
-          failures.push(`"${file.name}": ${err.message || 'Upload failed'}`);
+          const message = err?.message || 'Upload failed';
+          patch(task.id, { status: 'error', error: message });
+          failures.push(`"${file.name}": ${message}`);
         }
       }
-      await refreshCurrentFolder();
+
+      // only the file list can have changed, so skip refetching the folder tree
+      try {
+        setFiles(await api.listFiles(user.id, currentFolderId));
+      } catch {
+        await refreshCurrentFolder();
+      }
+
       if (failures.length > 0) {
         setError(`Upload issues: ${failures.join('; ')}`);
       }
@@ -423,6 +576,15 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         searchResults,
         selectedItem,
         setSelectedItem,
+        currentFolderRole,
+        canEdit,
+        canShare,
+        sharedWithMe,
+        fetchSharedWithMe,
+        sharedLoading,
+        uploads,
+        uploadLimits,
+        clearFinishedUploads,
         navigateToFolder,
         navigateUp,
         refreshCurrentFolder,

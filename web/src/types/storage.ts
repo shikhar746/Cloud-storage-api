@@ -32,6 +32,9 @@ export interface FileItem {
 export type ResourceType = 'file' | 'folder';
 export type ShareRole = 'viewer' | 'editor';
 
+/** What the caller may do with a resource, as reported by the API. */
+export type AccessRole = 'owner' | 'editor' | 'viewer';
+
 export interface ShareItem {
   id: string;
   resource_type: ResourceType;
@@ -49,6 +52,50 @@ export interface FolderContentResponse {
     folders: Folder[];
     files: FileItem[];
   };
+  /** Caller's access to this folder; inherited by everything inside it. */
+  role?: AccessRole;
+}
+
+export interface SharedUserRef {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+interface SharedMeta {
+  share_id?: string;
+  role?: AccessRole;
+  shared_at?: string;
+  shared_by?: SharedUserRef | null;
+}
+
+export type SharedFolder = Folder & SharedMeta;
+export type SharedFile = FileItem & SharedMeta;
+
+export interface SharedWithMeResponse {
+  folders: SharedFolder[];
+  files: SharedFile[];
+}
+
+/** Upload limits the API reports on its health endpoint. */
+export interface UploadLimits {
+  /** At or under this, upload multipart through the API. */
+  maxFileSizeBytes: number;
+  /** Above maxFileSizeBytes and up to this, upload straight to storage. */
+  maxDirectUploadBytes: number;
+}
+
+export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error';
+
+export interface UploadTask {
+  id: string;
+  name: string;
+  size: number;
+  loaded: number;
+  status: UploadStatus;
+  /** Which of the two upload paths this file took. */
+  method: 'multipart' | 'direct';
+  error?: string;
 }
 
 export interface TrashResponse {
