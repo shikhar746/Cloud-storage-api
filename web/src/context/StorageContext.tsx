@@ -49,6 +49,7 @@ interface StorageContextType {
   moveFolder: (folderId: string, targetParentId: string | null) => Promise<void>;
 
   uploadFiles: (fileList: FileList | File[]) => Promise<void>;
+  downloadFile: (file: FileItem) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<FileItem>;
   deleteFile: (fileId: string) => Promise<void>;
   restoreFile: (fileId: string) => Promise<FileItem>;
@@ -144,8 +145,29 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         breakdown: { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 },
       };
     }
+    if (apiMode === 'live') {
+      // Live API enforces no 15 GB total quota, only a 50 MB per-file limit.
+      // Sum loaded files size_bytes client-side for honest usage.
+      const breakdown = { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 };
+      let usedBytes = 0;
+      for (const f of files) {
+        const bytes = f.size_bytes || 0;
+        usedBytes += bytes;
+        if (f.mime_type.startsWith('image/')) breakdown.images += bytes;
+        else if (f.mime_type.startsWith('text/') || f.mime_type.includes('pdf') || f.mime_type.includes('document')) breakdown.documents += bytes;
+        else if (f.mime_type.startsWith('video/') || f.mime_type.startsWith('audio/')) breakdown.media += bytes;
+        else if (f.mime_type.includes('zip') || f.mime_type.includes('tar') || f.mime_type.includes('compressed')) breakdown.archives += bytes;
+        else if (f.mime_type.includes('javascript') || f.mime_type.includes('json') || f.mime_type.includes('typescript')) breakdown.code += bytes;
+        else breakdown.others += bytes;
+      }
+      return {
+        usedBytes,
+        totalBytes: 0, // 0 denotes no artificial total cap
+        breakdown,
+      };
+    }
     return mockStorage.getStorageUsage(user.id);
-  }, [user, files, folders]);
+  }, [user, apiMode, files]);
 
   // Load active folder items
   const loadFolderContent = useCallback(
@@ -286,19 +308,58 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await refreshCurrentFolder();
   };
 
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB backend limit
+
   const uploadFiles = async (fileList: FileList | File[]) => {
     if (!user) throw new Error('Not authenticated');
     const list = Array.from(fileList);
     setLoading(true);
+    const failures: string[] = [];
+
     try {
       for (const file of list) {
-        await api.uploadFile(user.id, file, currentFolderId);
+        if (file.size > MAX_FILE_SIZE) {
+          failures.push(`"${file.name}" exceeds 50 MB limit (${(file.size / (1024 * 1024)).toFixed(1)} MB)`);
+          continue;
+        }
+        try {
+          await api.uploadFile(user.id, file, currentFolderId);
+        } catch (err: any) {
+          failures.push(`"${file.name}": ${err.message || 'Upload failed'}`);
+        }
       }
       await refreshCurrentFolder();
+      if (failures.length > 0) {
+        setError(`Upload issues: ${failures.join('; ')}`);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const downloadFile = useCallback(async (file: FileItem) => {
+    try {
+      let url = file.signedUrl || file.previewUrl;
+      if (!url && user) {
+        const res = await api.getFile(user.id, file.id);
+        url = res.signedUrl || res.file?.signedUrl || res.file?.previewUrl;
+      }
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        throw new Error('No download URL available for this file');
+      }
+    } catch (err: any) {
+      console.error('Failed to download file', err);
+      setError(err?.message || 'Could not download file');
+    }
+  }, [user]);
 
   const renameFile = async (fileId: string, newName: string) => {
     if (!user) throw new Error('Not authenticated');
@@ -372,6 +433,7 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         permanentDeleteFolder,
         moveFolder,
         uploadFiles,
+        downloadFile,
         renameFile,
         deleteFile,
         restoreFile,

@@ -155,7 +155,7 @@ export const ApiConfigModal: React.FC = () => {
                 type="text"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="http://localhost:5000"
+                placeholder="http://localhost:8080"
                 className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs font-mono text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
               <button

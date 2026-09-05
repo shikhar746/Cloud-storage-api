@@ -26,6 +26,7 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
     setShareTarget,
     selectedItem,
     setSelectedItem,
+    downloadFile,
   } = useStorage();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -50,13 +51,8 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const downloadUrl = file.previewUrl || file.signedUrl || '#';
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    setIsMenuOpen(false);
+    downloadFile(file);
   };
 
   return (

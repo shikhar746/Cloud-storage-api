@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, Share2, Copy, Check, Users, Trash2, Shield, AlertCircle } from 'lucide-react';
+import { X, Share2, Copy, Check, Users, Trash2, Shield, AlertCircle, UserCheck } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { ShareItem, ShareRole } from '../../types/storage';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const ShareModal: React.FC = () => {
   const { shareTarget, setShareTarget } = useStorage();
   const { user } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [granteeUserId, setGranteeUserId] = useState('');
   const [role, setRole] = useState<ShareRole>('viewer');
   const [shares, setShares] = useState<ShareItem[]>([]);
   const [loadingShares, setLoadingShares] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedMyId, setCopiedMyId] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,17 +44,28 @@ export const ShareModal: React.FC = () => {
   const handleCreateShare = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setError('Please enter a valid email address');
+    const cleanId = granteeUserId.trim();
+
+    if (!cleanId) {
+      setError('Please enter a User UUID');
+      return;
+    }
+
+    if (!UUID_REGEX.test(cleanId)) {
+      setError('The API requires a valid User UUID (e.g. 123e4567-e89b-12d3-a456-426614174000). The API has no email lookup route.');
+      return;
+    }
+
+    if (cleanId === user.id) {
+      setError('You already own this resource.');
       return;
     }
 
     setSubmitting(true);
     setError(null);
     try {
-      await api.createShare(user.id, shareTarget.type, shareTarget.item.id, cleanEmail, role);
-      setEmail('');
+      await api.createShare(user.id, shareTarget.type, shareTarget.item.id, cleanId, role);
+      setGranteeUserId('');
       await loadShares();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to share resource');
@@ -71,12 +84,11 @@ export const ShareModal: React.FC = () => {
     }
   };
 
-  const shareUrl = `${window.location.origin}/shared/${shareTarget.type}/${shareTarget.item.id}`;
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyMyId = () => {
+    if (!user?.id) return;
+    navigator.clipboard.writeText(user.id);
+    setCopiedMyId(true);
+    setTimeout(() => setCopiedMyId(false), 2000);
   };
 
   return (
@@ -116,19 +128,29 @@ export const ShareModal: React.FC = () => {
         )}
 
         {/* Invite Member Form */}
-        <form onSubmit={handleCreateShare} className="mb-6 space-y-3">
-          <label className="block text-xs font-semibold text-gray-300">
-            Invite collaborator by email
-          </label>
+        <form onSubmit={handleCreateShare} className="mb-6 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold text-gray-300">
+              Grant access by User ID (UUID)
+            </label>
+            <button
+              type="button"
+              onClick={handleCopyMyId}
+              className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors"
+            >
+              {copiedMyId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedMyId ? 'Copied my ID!' : 'Copy my User ID'}</span>
+            </button>
+          </div>
           <div className="flex gap-2">
             <input
-              id="share-email-input"
-              type="email"
+              id="share-user-id-input"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@organization.com"
-              className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              value={granteeUserId}
+              onChange={(e) => setGranteeUserId(e.target.value)}
+              placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000"
+              className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs font-mono text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <select
               id="share-role-select"
@@ -136,8 +158,8 @@ export const ShareModal: React.FC = () => {
               onChange={(e) => setRole(e.target.value as ShareRole)}
               className="rounded-xl border border-[#262626] px-3 py-2 text-xs text-gray-200 font-medium bg-[#161616] focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
-              <option value="viewer">Can View</option>
-              <option value="editor">Can Edit</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
             </select>
             <button
               id="submit-share-btn"
@@ -145,9 +167,12 @@ export const ShareModal: React.FC = () => {
               disabled={submitting}
               className="px-4 py-2 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Sharing...' : 'Invite'}
+              {submitting ? 'Adding...' : 'Grant'}
             </button>
           </div>
+          <p className="text-[11px] text-gray-500">
+            Backend API validates a standard UUID. Collaborators must provide their account User ID.
+          </p>
         </form>
 
         {/* Existing Collaborators */}
@@ -165,7 +190,7 @@ export const ShareModal: React.FC = () => {
                 </div>
                 <div className="truncate">
                   <span className="font-semibold text-gray-200">{user?.name} (You)</span>
-                  <span className="text-gray-500 block text-[10px]">{user?.email}</span>
+                  <span className="text-gray-500 block text-[10px] font-mono">{user?.id}</span>
                 </div>
               </div>
               <span className="text-gray-400 font-medium text-[11px]">Owner</span>
@@ -185,8 +210,8 @@ export const ShareModal: React.FC = () => {
                     <span className="font-medium text-gray-200">
                       {share.grantee_name || share.grantee_email || 'Collaborator'}
                     </span>
-                    <span className="text-gray-500 block text-[10px]">
-                      {share.grantee_email || share.grantee_user_id}
+                    <span className="text-gray-500 block text-[10px] font-mono">
+                      {share.grantee_email ? `${share.grantee_email} (${share.grantee_user_id})` : share.grantee_user_id}
                     </span>
                   </div>
                 </div>
@@ -214,22 +239,15 @@ export const ShareModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Copy Link Footer */}
+        {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-[#1f1f1f]">
-          <button
-            id="copy-shareable-link-btn"
-            type="button"
-            onClick={handleCopyLink}
-            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Link Copied to Clipboard!' : 'Copy Shareable Link'}</span>
-          </button>
-
+          <span className="text-[11px] text-gray-500">
+            Permissions are synced directly with the Cloud Storage API
+          </span>
           <button
             type="button"
             onClick={() => setShareTarget(null)}
-            className="px-4 py-2 rounded-xl border border-[#262626] text-xs font-semibold text-gray-300 hover:bg-[#1a1a1a] transition-colors"
+            className="px-4 py-2 rounded-xl bg-[#1c1c1c] hover:bg-[#252525] border border-[#262626] text-xs font-semibold text-gray-200 transition-colors"
           >
             Done
           </button>
