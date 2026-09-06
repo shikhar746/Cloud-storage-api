@@ -68,13 +68,22 @@ Create a **Web Service** pointing at this repo, then:
 | --- | --- |
 | Root Directory | `api` |
 | Runtime | Node |
-| Build Command | `npm ci --include=dev && npm run build` |
+| Build Command | `npm install && npm run build` |
 | Start Command | `npm start` |
 | Health Check Path | `/` |
 
-`--include=dev` is not optional. `NODE_ENV=production` is in the environment, so
-a plain `npm ci` skips devDependencies, TypeScript never installs, and the build
-dies on `tsc: not found`.
+The build runs `tsc`, which lives in devDependencies, and `NODE_ENV=production`
+makes npm read that as `--omit=dev`. Left alone, the install brings down 142
+packages with no `@types` directory at all and the build dies on:
+
+```
+error TS2688: Cannot find type definition file for 'node'.
+```
+
+`api/.npmrc` sets `include=dev`, which overrides the implied omit, so **any**
+build command works — you do not have to remember `--include=dev` in the
+dashboard. If a stale Render cache still reports "up to date" without installing
+them, use **Manual Deploy > Clear build cache & deploy** once.
 
 Import `api/.env.render` under **Environment**. Two things about it:
 
@@ -182,7 +191,7 @@ that ceiling modest on a small instance — the whole file sits in RAM.
 | Login returns 200 but you are immediately signed out | `NODE_ENV` is not `production` on Render, so the cookie lacks `SameSite=None; Secure` and the browser discards it. |
 | Requests still go to `http://localhost:8080` | `VITE_API_URL` was not set at build time, or the app was not redeployed after setting it. |
 | ...even though `VITE_API_URL` is correct | A stale manual override in the browser. The API Config modal saves to `localStorage`; clear `csa_api_base_url` (and `csa_api_mode`) in DevTools > Application. |
-| Build fails with `tsc: not found` | Build command is missing `--include=dev`. |
+| Build fails with `tsc: not found` or `TS2688: Cannot find type definition file for 'node'` | devDependencies were skipped because `NODE_ENV=production`. `api/.npmrc` (`include=dev`) fixes this; make sure that file reached the deployed commit, and clear the Render build cache if it persists. |
 | `Missing required environment variables: ...` | Exactly what it says — the log lists every missing name at once. |
 | Login works in Chrome, not in Safari/Brave | Third-party cookie blocking. The API and web app are on different registrable domains, so the auth cookie is cross-site. Fix by hosting both under one domain (`api.example.com` + `app.example.com`). |
 
