@@ -19,17 +19,21 @@ const BASE_URL_ENV_KEY = 'csa_api_base_url_env'; // VITE_API_URL the override wa
 const API_MODE_STORAGE_KEY = 'csa_api_mode'; // 'live' | 'sandbox'
 
 /**
- * Where the API lives. Set VITE_API_URL at build time (Vercel: Project >
- * Settings > Environment Variables) — Vite inlines it into the bundle, so a
- * change there needs a redeploy, not just a page reload. VITE_API_BASE_URL is
- * accepted as an older alias. A trailing slash is stripped because every
- * request appends its own leading-slash path.
+ * Where the API lives. Set VITE_API_URL at build time — Vite inlines it into
+ * the bundle, so a change needs a redeploy, not just a page reload.
+ * VITE_API_BASE_URL is accepted as an older alias. A trailing slash is
+ * stripped because every request appends its own leading-slash path.
+ *
+ * An EMPTY value is meaningful, and is the default for the single-service
+ * deploy: every request goes to the page's own origin, which is what keeps the
+ * auth cookies first-party. Only an UNSET variable falls back to the local API,
+ * so the two cases must not be collapsed with `||`.
  */
-const DEFAULT_API_BASE_URL = (
-  (typeof import.meta !== 'undefined' &&
-    (import.meta.env?.VITE_API_URL || import.meta.env?.VITE_API_BASE_URL)) ||
-  'http://localhost:8080'
-).replace(/\/+$/, '');
+const CONFIGURED_API_URL =
+  typeof import.meta !== 'undefined'
+    ? import.meta.env?.VITE_API_URL ?? import.meta.env?.VITE_API_BASE_URL
+    : undefined;
+const DEFAULT_API_BASE_URL = (CONFIGURED_API_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
 const DEFAULT_API_MODE =
   ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_MODE) as 'live' | 'sandbox') || 'live';
 
@@ -39,13 +43,22 @@ export const FALLBACK_UPLOAD_LIMITS: UploadLimits = {
   maxDirectUploadBytes: 5 * 1024 * 1024 * 1024,
 };
 
+/**
+ * Status and upload limits. Served at /api/health, because when the API also
+ * serves this bundle the root belongs to the SPA and answers with HTML. An API
+ * deployed before that endpoint existed still replies at the root, so a 404
+ * falls back rather than reporting the server down.
+ */
+async function fetchHealth(baseUrl: string): Promise<Response> {
+  const cleanUrl = baseUrl.replace(/\/+$/, '');
+  const res = await fetch(`${cleanUrl}/api/health`, { method: 'GET' });
+  if (res.status === 404) return fetch(`${cleanUrl}/`, { method: 'GET' });
+  return res;
+}
+
 export async function checkBackendHealth(baseUrl: string): Promise<boolean> {
   try {
-    const cleanUrl = baseUrl.replace(/\/+$/, '');
-    const res = await fetch(`${cleanUrl}/`, {
-      method: 'GET',
-    });
-    return res.ok;
+    return (await fetchHealth(baseUrl)).ok;
   } catch {
     return false;
   }
@@ -121,9 +134,7 @@ export class ApiClient {
   async checkHealth(): Promise<{ ok: boolean; message: string }> {
     try {
       // Do not send Content-Type on GET to avoid unnecessary CORS preflight
-      const res = await fetch(`${this.baseUrl}/`, {
-        method: 'GET',
-      });
+      const res = await fetchHealth(this.baseUrl);
       if (res.ok) {
         return { ok: true, message: 'Backend connected successfully (status: ok)' };
       }
@@ -235,7 +246,7 @@ export class ApiClient {
     if (this.limits) return this.limits;
 
     try {
-      const res = await fetch(`${this.baseUrl}/`, { method: 'GET' });
+      const res = await fetchHealth(this.baseUrl);
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         const reported = data?.limits;

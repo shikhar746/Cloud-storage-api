@@ -1,6 +1,10 @@
 import express from 'express'
+import type { Request, Response } from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { env } from './config/env.js'
 import authRoutes from './routes/auth.routes.js'
 import folderRoutes from './routes/folder.routes.js'
@@ -11,6 +15,18 @@ import shareRoutes from './routes/share.routes.js'
 import userRoutes from './routes/user.routes.js'
 
 const app = express()
+
+// The built web client, when this service serves it too. Resolved from this
+// module rather than the working directory, so it lands in the same place run
+// from api/src (tsx) and api/dist (node). If it is absent — an API-only
+// deploy, or `web` was never built — every block guarded by this is skipped
+// and the server behaves exactly as it did before.
+const webDist = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'web', 'dist')
+const webIndex = path.join(webDist, 'index.html')
+const hasWebBuild = fs.existsSync(webIndex)
+
+/** Where the bundle is served from, or null on an API-only deploy. */
+export const webBundle = hasWebBuild ? webDist : null
 
 // Render/Vercel terminate TLS in front of the app; without this Express sees
 // every request as plain http and req.ip is the proxy's address
@@ -41,6 +57,10 @@ function originMatches(pattern: string, origin: string): boolean {
   return true
 }
 
+// Only cross-origin callers need this: when the bundle ships from this same
+// service the browser sends no Origin header on same-site requests at all.
+// It still matters for local dev (vite on :3000, api on :8080) and for a
+// split deploy, so the allow-list stays.
 app.use(cors({
   origin(origin, callback) {
     // no Origin header at all: curl, server-to-server, Render's health check
@@ -59,9 +79,12 @@ app.use(cors({
 
 app.use(express.json())
 app.use(cookieParser())
-app.get('/', (_req, res) => {
-    // the upload limits ride along with the health check so the web client can
-    // pick its upload path from the server's numbers instead of hard-coding them
+
+// Liveness plus the upload limits, which ride along so the web client can pick
+// its upload path from the server's numbers instead of hard-coding them. It
+// lives under /api because the SPA owns "/" whenever the two are served
+// together.
+function health(_req: Request, res: Response) {
     res.json({
         status: 'ok',
         limits: {
@@ -69,7 +92,13 @@ app.get('/', (_req, res) => {
             maxDirectUploadBytes: env.MAX_DIRECT_UPLOAD_BYTES,
         },
     })
-})
+}
+
+app.get('/api/health', health)
+// an API-only deploy has nothing else to put at the root, and older clients
+// still probe there
+if (!hasWebBuild) app.get('/', health)
+
 app.use('/api/auth', authRoutes)
 
 //--------->Folder routes<------------//
@@ -83,6 +112,23 @@ app.use('/api/search', searchRoutes)
 app.use('/api/shares', shareRoutes)
 
 app.use('/api/users', userRoutes)
+
+// ---------> Web client <--------- //
+// Serving the bundle from this origin is the point of the single-service
+// deploy: it makes the auth cookies first-party. Hosted on a separate site
+// they are third-party cookies, which Safari, Brave and any blocker extension
+// drop outright — login returns 200 and the next request is still a 401.
+if (hasWebBuild) {
+    app.use(express.static(webDist, { index: false }))
+
+    // client-side routing: a GET matching no file and no API route is a deep
+    // link into the SPA and must be answered with index.html, not a 404
+    app.use((req, res, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+        if (req.path.startsWith('/api/')) return next()
+        res.sendFile(webIndex)
+    })
+}
 
 app.use((_req, res) => {
     res.status(404).json({
