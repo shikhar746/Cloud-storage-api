@@ -15,6 +15,7 @@ import {
 import { mockStorage } from './mockStorage';
 
 const BASE_URL_STORAGE_KEY = 'csa_api_base_url';
+const BASE_URL_ENV_KEY = 'csa_api_base_url_env'; // VITE_API_URL the override was set against
 const API_MODE_STORAGE_KEY = 'csa_api_mode'; // 'live' | 'sandbox'
 
 /**
@@ -78,7 +79,20 @@ export class ApiClient {
   private limits: UploadLimits | null = null;
 
   constructor() {
-    this.baseUrl = localStorage.getItem(BASE_URL_STORAGE_KEY) || DEFAULT_API_BASE_URL;
+    const stored = localStorage.getItem(BASE_URL_STORAGE_KEY);
+    const storedEnv = localStorage.getItem(BASE_URL_ENV_KEY);
+
+    // Honour a manual override only while VITE_API_URL is unchanged. Without
+    // this an override saved from the API config modal (e.g. localhost:8080)
+    // outlives every rebuild and silently shadows the deployed API URL.
+    if (stored && storedEnv === DEFAULT_API_BASE_URL) {
+      this.baseUrl = stored;
+    } else {
+      this.baseUrl = DEFAULT_API_BASE_URL;
+      localStorage.removeItem(BASE_URL_STORAGE_KEY);
+      localStorage.removeItem(BASE_URL_ENV_KEY);
+    }
+
     this.mode = (localStorage.getItem(API_MODE_STORAGE_KEY) as 'live' | 'sandbox') || DEFAULT_API_MODE;
   }
 
@@ -89,6 +103,7 @@ export class ApiClient {
   setBaseUrl(url: string) {
     this.baseUrl = url.replace(/\/+$/, '');
     localStorage.setItem(BASE_URL_STORAGE_KEY, this.baseUrl);
+    localStorage.setItem(BASE_URL_ENV_KEY, DEFAULT_API_BASE_URL);
     // a different server may enforce different limits
     this.limits = null;
   }
