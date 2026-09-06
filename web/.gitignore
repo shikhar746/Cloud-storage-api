@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+# committed on purpose: build-time public config, see the file's header
+!.env.production
