@@ -97,19 +97,44 @@ That must return JSON. The root must return HTML — the app shell.
 
 ## 3. Google sign-in
 
-The same OAuth client is used on both sides and the two values must match:
-`GOOGLE_CLIENT_ID` on Render, `VITE_GOOGLE_CLIENT_ID` in `web/.env.production`
-(or as a Render variable, which overrides it). It is a public value, not a
-secret.
+There is no client secret. The browser gets an ID token from Google Identity
+Services and this API only verifies its signature against Google's public
+certs — no authorization-code exchange, so nothing to keep secret.
+`GOOGLE_CLIENT_SECRET` is no longer read; delete it from your Render
+environment if it is still there.
 
-In Google Cloud Console > Credentials, open that client and list the deployed
-origin under **Authorized JavaScript origins**:
+Three things must agree, and all three are public:
+
+| | Where | Value |
+| --- | --- | --- |
+| 1 | `GOOGLE_CLIENT_ID` on Render | the client id |
+| 2 | `VITE_GOOGLE_CLIENT_ID` in `web/.env.production` | the **same** client id |
+| 3 | Google Cloud Console > Credentials > that client | the serving origin under **Authorized JavaScript origins** |
+
+**Moving to a single service changes (3).** The app is now served from the
+Render URL, not the Vercel one, and Google refuses to render its button on an
+origin it has not been told about. Add it before you cut over:
 
 ```
 https://YOUR-SERVICE.onrender.com
 http://localhost:5173
 http://localhost:3000
 ```
+
+The boot log prints the id it loaded, so (1) versus (2) is a glance:
+
+```
+[api] google sign-in: enabled (6284...apps.googleusercontent.com)
+```
+
+Mismatched ids fail closed. Verification throws `Wrong recipient`, the API
+answers `401 INVALID_GOOGLE_TOKEN`, and the log names the audience it checked
+against.
+
+An address Google has not confirmed is rejected outright, because a Google
+sign-in whose email matches an existing password account is linked to that
+account — accepting an unconfirmed address would hand the account to whoever
+registered it with Google.
 
 Leave `VITE_GOOGLE_CLIENT_ID` blank to hide the button; leave `GOOGLE_CLIENT_ID`
 blank and `POST /api/auth/google` reports itself disabled.
@@ -178,6 +203,10 @@ it call this API with your users' cookies, so prefer exact origins.
 | Build fails on `vite: not found` or `TS2688` | devDependencies were skipped because `NODE_ENV=production`. `api/.npmrc` and `web/.npmrc` (`include=dev`) fix this; make sure both reached the deployed commit, then clear the build cache. |
 | `Missing required environment variables: ...` | Exactly what it says — the log names every missing one at once, so you redeploy once. |
 | `ERR_BLOCKED_BY_CLIENT` on `play.google.com/log` | An ad blocker eating Google Identity Services' telemetry beacon. Harmless; sign-in still works. |
+| The Google button never appears | `VITE_GOOGLE_CLIENT_ID` was empty at build time. The card in its place says so. |
+| Google button appears but the popup errors with `origin_mismatch` | The serving origin is not under **Authorized JavaScript origins** on that OAuth client. Add the exact origin, scheme included. |
+| Google sign-in returns `401 INVALID_GOOGLE_TOKEN` | The API and the bundle are configured with different client ids. Compare the boot log's `google sign-in:` line against the id in the bundle. |
+| Google sign-in returns `501 GOOGLE_SIGNIN_DISABLED` | `GOOGLE_CLIENT_ID` is unset on the API. |
 | A 401 on `/api/auth/me` and `/api/auth/refresh` at page load | Normal when nobody is signed in yet. The app asks who you are, the refresh retry finds no cookie either, and the sign-in screen renders. Only a problem if it continues *after* a successful login. |
 
 ## Variables that used to be here and are not

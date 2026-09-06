@@ -29,14 +29,24 @@ export async function verifyGoogleIdToken(credential: string): Promise<GooglePro
     })
     payload = ticket.getPayload()
   } catch (err) {
-    console.error('google id token verification failed', err)
+    // by far the most common cause is the two halves being configured against
+    // different OAuth clients, which the library reports only as "Wrong
+    // recipient" — so name the id this process actually checks against
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`google id token verification failed (audience ${env.GOOGLE_CLIENT_ID}): ${message}`)
     return null
   }
 
   if (!payload?.sub || !payload.email) return null
 
-  // an unverified address could belong to anyone — never link an account to it
-  if (payload.email_verified === false) return null
+  // Must be affirmatively true. A missing claim is not a confirmation, and
+  // this address is what the controller matches against existing password
+  // accounts — accepting an unconfirmed one would hand over that account to
+  // whoever registered the address with Google.
+  if (payload.email_verified !== true) {
+    console.warn(`google sign-in refused: address not verified by google (${payload.email})`)
+    return null
+  }
 
   return {
     googleId: payload.sub,
