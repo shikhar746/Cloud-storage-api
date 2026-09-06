@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { StorageProvider } from './context/StorageContext';
 import { AuthPage } from './components/auth/AuthPage';
 import { MainLayout } from './components/layout/MainLayout';
+import { PublicShareView } from './components/public/PublicShareView';
 import { Cloud } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -38,7 +39,25 @@ const AppContent: React.FC = () => {
   );
 };
 
+/**
+ * The app has no router, but a share link still needs a URL of its own. The
+ * path is read once at boot: /s/<token> renders the visitor page instead of
+ * the app, deliberately OUTSIDE AuthProvider — a visitor has no account, and
+ * mounting the auth flow would redirect them to a sign-in screen they cannot
+ * complete.
+ *
+ * The character class matches base64url, which is what the server generates.
+ */
+function publicShareToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const match = window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)\/?$/);
+  return match ? match[1] : null;
+}
+
 export default function App() {
+  const token = publicShareToken();
+  if (token) return <PublicShareView token={token} />;
+
   return (
     <AuthProvider>
       <AppContent />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Share2, Copy, Check, Users, Trash2, Shield, AlertCircle, UserCheck } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
+import { PublicLinkSection } from './PublicLinkSection';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { ShareItem, ShareRole } from '../../types/storage';
@@ -132,6 +133,8 @@ export const ShareModal: React.FC = () => {
             <span>{error}</span>
           </div>
         )}
+
+        <PublicLinkSection resourceType={shareTarget.type} resourceId={shareTarget.item.id} />
 
         {/* Invite Member Form */}
         <form onSubmit={handleCreateShare} className="mb-6 space-y-2">

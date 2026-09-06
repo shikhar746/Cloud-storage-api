@@ -109,6 +109,42 @@ export interface UploadTask {
   error?: string;
 }
 
+/** A public link. `token` is the bearer credential; treat it like a password. */
+export interface ShareLink {
+  id: string;
+  token: string;
+  resource_type: ResourceType;
+  resource_id: string;
+  expires_at: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  has_password: boolean;
+}
+
+/** What a visitor learns before supplying a password: deliberately very little. */
+export interface PublicShareMeta {
+  resourceType: ResourceType;
+  requiresPassword: boolean;
+  expiresAt: string | null;
+  /** Withheld entirely while the link is password protected. */
+  name?: string;
+}
+
+export interface PublicFilePayload {
+  resourceType: 'file';
+  file: FileItem;
+  signedUrl: string;
+}
+
+export interface PublicFolderPayload {
+  resourceType: 'folder';
+  folder: Folder;
+  isRoot: boolean;
+  children: { folders: Folder[]; files: FileItem[] };
+}
+
+export type PublicSharePayload = PublicFilePayload | PublicFolderPayload;
+
 export interface StarredResponse {
   folders: Folder[];
   files: FileItem[];

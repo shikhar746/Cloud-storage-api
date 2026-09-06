@@ -8,6 +8,9 @@ import {
   SearchResponse,
   SharedWithMeResponse,
   StarredResponse,
+  ShareLink,
+  PublicShareMeta,
+  PublicSharePayload,
   ResourceType,
   ShareRole,
   UploadLimits,
@@ -54,6 +57,67 @@ function extractErrorMessage(data: any, status: number): string {
     errorMsg = data.message;
   }
   return errorMsg || `Request failed with status ${status}`;
+}
+
+/** An API error that kept its machine-readable code, so callers can branch. */
+export class ApiError extends Error {
+  constructor(message: string, readonly code: string | undefined, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/**
+ * Calls a public share endpoint.
+ *
+ * Deliberately NOT routed through ApiClient.request: that wrapper treats every
+ * 401 as an expired session and silently retries after refreshing. Here a 401
+ * means "wrong password", and retrying it would be both useless and confusing.
+ * It also sends no credentials — the token in the path is the only credential,
+ * and a stray session cookie must never be what makes a public link work.
+ */
+async function publicRequest<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}/api/public${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(extractErrorMessage(data, res.status), data?.error?.code, res.status);
+  }
+  return data as T;
+}
+
+/** What this link points at, and whether it wants a password. */
+export function getPublicShare(token: string): Promise<PublicShareMeta> {
+  return publicRequest<PublicShareMeta>(`/${encodeURIComponent(token)}`);
+}
+
+export function accessPublicShare(token: string, password?: string): Promise<PublicSharePayload> {
+  return publicRequest<PublicSharePayload>(`/${encodeURIComponent(token)}/access`, { password });
+}
+
+export function browsePublicShare(
+  token: string,
+  folderId: string,
+  password?: string
+): Promise<PublicSharePayload> {
+  return publicRequest<PublicSharePayload>(
+    `/${encodeURIComponent(token)}/folder/${encodeURIComponent(folderId)}`,
+    { password }
+  );
+}
+
+export function getPublicFile(
+  token: string,
+  fileId: string,
+  password?: string
+): Promise<{ file: FileItem; signedUrl: string }> {
+  return publicRequest(`/${encodeURIComponent(token)}/file/${encodeURIComponent(fileId)}`, {
+    password,
+  });
 }
 
 export class ApiClient {
@@ -438,6 +502,36 @@ export class ApiClient {
   // Search
   async search(userId: string, query: string): Promise<SearchResponse> {
     return this.request<SearchResponse>(`/api/search?q=${encodeURIComponent(query)}`);
+  }
+
+  // Public share links — owner side. The visitor side is unauthenticated and
+  // lives in the standalone helpers above.
+  async createShareLink(
+    resourceType: ResourceType,
+    resourceId: string,
+    options: { expiresInDays?: number | null; password?: string | null } = {}
+  ): Promise<ShareLink> {
+    const res = await this.request<{ link: ShareLink }>('/api/share-links', {
+      method: 'POST',
+      body: JSON.stringify({
+        resourceType,
+        resourceId,
+        expiresInDays: options.expiresInDays ?? null,
+        password: options.password || null,
+      }),
+    });
+    return res.link;
+  }
+
+  async listShareLinks(resourceType: ResourceType, resourceId: string): Promise<ShareLink[]> {
+    const res = await this.request<{ links: ShareLink[] }>(
+      `/api/share-links/${resourceType}/${resourceId}`
+    );
+    return res.links || [];
+  }
+
+  async deleteShareLink(id: string): Promise<void> {
+    await this.request(`/api/share-links/${id}`, { method: 'DELETE' });
   }
 
   // Stars — per-user bookmarks, not a property of the resource

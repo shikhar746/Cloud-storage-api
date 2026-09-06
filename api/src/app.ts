@@ -15,6 +15,8 @@ import shareRoutes from './routes/share.routes.js'
 import userRoutes from './routes/user.routes.js'
 import starRoutes from './routes/star.routes.js'
 import maintenanceRoutes from './routes/maintenance.routes.js'
+import shareLinkRoutes from './routes/shareLink.routes.js'
+import publicShareRoutes from './routes/publicShare.routes.js'
 
 const app = express()
 
@@ -118,6 +120,11 @@ app.use('/api/shares', shareRoutes)
 app.use('/api/users', userRoutes)
 
 app.use('/api/stars', starRoutes)
+
+app.use('/api/share-links', shareLinkRoutes)
+
+// unauthenticated by design — the token in the path is the credential
+app.use('/api/public', publicShareRoutes)
 
 app.use('/api/maintenance', maintenanceRoutes)
 
