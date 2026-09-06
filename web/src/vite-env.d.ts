@@ -1,10 +1,11 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_API_URL?: string;
-  /** Older alias for VITE_API_URL, still honoured by the client. */
-  readonly VITE_API_BASE_URL?: string;
-  readonly VITE_API_MODE?: string;
+  /**
+   * Google OAuth web client id. The API's base URL is deliberately NOT an
+   * environment variable — there is one backend, and it is a constant in
+   * services/api.ts.
+   */
   readonly VITE_GOOGLE_CLIENT_ID?: string;
 }
 

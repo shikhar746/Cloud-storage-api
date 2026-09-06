@@ -3,7 +3,6 @@ import {
   HardDrive,
   Users,
   Trash2,
-  Settings,
   Plus,
   FolderPlus,
   UploadCloud,
@@ -24,7 +23,6 @@ export const Sidebar: React.FC = () => {
     storageUsage,
     setIsNewFolderOpen,
     uploadFiles,
-    setIsSettingsOpen,
     isSidebarOpen,
     closeSidebar,
     canEdit,
@@ -241,19 +239,6 @@ export const Sidebar: React.FC = () => {
                 )}
               </button>
 
-              <button
-                id="nav-settings"
-                onClick={() => {
-                  setIsSettingsOpen(true);
-                  handleNav();
-                }}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-[#1a1a1a] hover:text-white transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <Settings className="w-4 h-4 text-gray-500" />
-                  <span>API Connection</span>
-                </div>
-              </button>
             </nav>
           </div>
 

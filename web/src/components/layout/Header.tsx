@@ -4,9 +4,7 @@ import {
   Cloud,
   LogOut,
   User,
-  Settings,
   X,
-  Server,
   ChevronDown,
   Folder as FolderIcon,
   File as FileIconLucide,
@@ -19,14 +17,13 @@ import { FileIcon } from '../common/FileIcon';
 import { formatBytes } from '../../utils/formatters';
 
 export const Header: React.FC = () => {
-  const { user, logout, apiMode, baseUrl } = useAuth();
+  const { user, logout } = useAuth();
   const {
     searchQuery,
     setSearchQuery,
     searchResults,
     navigateToFolder,
     setPreviewFile,
-    setIsSettingsOpen,
     setActiveTab,
     isSidebarOpen,
     toggleSidebar,
@@ -93,24 +90,6 @@ export const Header: React.FC = () => {
           </div>
         </button>
 
-        {/* Backend mode pill */}
-        <button
-          id="header-api-mode-badge"
-          onClick={() => setIsSettingsOpen(true)}
-          className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-            apiMode === 'live'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/20'
-          }`}
-          title="Click to configure API connection"
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              apiMode === 'live' ? 'bg-emerald-400' : 'bg-indigo-400'
-            }`}
-          />
-          <span>{apiMode === 'live' ? 'Live API' : 'Sandbox (Demo)'}</span>
-        </button>
       </div>
 
       {/* Global Search */}
@@ -205,17 +184,8 @@ export const Header: React.FC = () => {
         )}
       </div>
 
-      {/* Right Controls: Settings & User menu */}
+      {/* Right Controls: User menu */}
       <div className="flex items-center gap-2">
-        <button
-          id="header-settings-btn"
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-2 text-gray-400 hover:text-white hover:bg-[#1a1a1a] rounded-xl transition-colors"
-          title="Backend API Connection & Settings"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-
         {/* User profile dropdown */}
         <div ref={userMenuRef} className="relative">
           <button
@@ -242,20 +212,7 @@ export const Header: React.FC = () => {
                 <p className="text-xs text-gray-400 truncate">{user?.email}</p>
               </div>
 
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    setIsUserMenuOpen(false);
-                    setIsSettingsOpen(true);
-                  }}
-                  className="w-full px-4 py-2 text-left flex items-center gap-2.5 text-gray-300 hover:bg-[#1a1a1a] hover:text-white transition-colors"
-                >
-                  <Server className="w-4 h-4 text-gray-400" />
-                  <span>API Settings</span>
-                </button>
-              </div>
-
-              <div className="border-t border-[#1f1f1f] pt-1">
+              <div className="pt-1">
                 <button
                   id="user-logout-btn"
                   onClick={async () => {

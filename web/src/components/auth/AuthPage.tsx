@@ -1,14 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { Cloud, Lock, Mail, User, ArrowRight, Database, AlertCircle } from 'lucide-react';
+import { Cloud, Lock, Mail, User, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
-interface AuthPageProps {
-  onOpenSettings?: () => void;
-}
-
-export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
-  const { login, register, loginWithGoogle, apiMode, baseUrl } = useAuth();
+export const AuthPage: React.FC = () => {
+  const { login, register, loginWithGoogle } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
@@ -241,26 +237,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
             disabled={submitting}
           />
 
-          {/* Backend target status banner */}
-          <div className="mt-2.5 pt-2 sm:mt-3.5 sm:pt-2.5 border-t border-[#1f1f1f] flex items-center justify-between text-[11px] sm:text-xs text-gray-500">
-            <div className="flex items-center gap-1.5 truncate mr-2">
-              <Database className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-              <span className="shrink-0">Target:</span>
-              <span className="font-semibold text-gray-300 truncate">
-                {apiMode === 'live' ? baseUrl : 'Sandbox Mode (Local)'}
-              </span>
-            </div>
-            {onOpenSettings && (
-              <button
-                id="auth-settings-btn"
-                type="button"
-                onClick={onOpenSettings}
-                className="text-indigo-400 hover:text-indigo-300 hover:underline font-medium shrink-0 cursor-pointer"
-              >
-                Change
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>

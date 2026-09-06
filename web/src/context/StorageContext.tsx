@@ -17,7 +17,6 @@ import {
 } from '../types/storage';
 import { relativeFolderPath } from '../utils/dropEntries';
 import { api, FALLBACK_UPLOAD_LIMITS } from '../services/api';
-import { mockStorage } from '../services/mockStorage';
 import { useAuth } from './AuthContext';
 
 interface StorageContextType {
@@ -96,8 +95,6 @@ interface StorageContextType {
   setMoveTarget: (target: { type: 'file' | 'folder'; id: string; name: string } | null) => void;
   isNewFolderOpen: boolean;
   setIsNewFolderOpen: (open: boolean) => void;
-  isSettingsOpen: boolean;
-  setIsSettingsOpen: (open: boolean) => void;
 
   // Sidebar controls
   isSidebarOpen: boolean;
@@ -116,7 +113,7 @@ function formatLimit(bytes: number): string {
 }
 
 export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, apiMode } = useAuth();
+  const { user } = useAuth();
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
@@ -155,7 +152,6 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [renameTarget, setRenameTarget] = useState<{ type: 'file' | 'folder'; id: string; currentName: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ type: 'file' | 'folder'; id: string; name: string } | null>(null);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Responsive sidebar state: open by default on desktop (>=1024px), closed on mobile (<1024px)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
@@ -186,29 +182,26 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         breakdown: { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 },
       };
     }
-    if (apiMode === 'live') {
-      // Live API enforces no total quota, only a per-file ceiling.
-      // Sum loaded files size_bytes client-side for honest usage.
-      const breakdown = { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 };
-      let usedBytes = 0;
-      for (const f of files) {
-        const bytes = f.size_bytes || 0;
-        usedBytes += bytes;
-        if (f.mime_type.startsWith('image/')) breakdown.images += bytes;
-        else if (f.mime_type.startsWith('text/') || f.mime_type.includes('pdf') || f.mime_type.includes('document')) breakdown.documents += bytes;
-        else if (f.mime_type.startsWith('video/') || f.mime_type.startsWith('audio/')) breakdown.media += bytes;
-        else if (f.mime_type.includes('zip') || f.mime_type.includes('tar') || f.mime_type.includes('compressed')) breakdown.archives += bytes;
-        else if (f.mime_type.includes('javascript') || f.mime_type.includes('json') || f.mime_type.includes('typescript')) breakdown.code += bytes;
-        else breakdown.others += bytes;
-      }
-      return {
-        usedBytes,
-        totalBytes: 0, // 0 denotes no artificial total cap
-        breakdown,
-      };
+    // The API enforces no total quota, only a per-file ceiling, so usage is
+    // summed from the loaded files rather than reported by the server.
+    const breakdown = { images: 0, documents: 0, media: 0, archives: 0, code: 0, others: 0 };
+    let usedBytes = 0;
+    for (const f of files) {
+      const bytes = f.size_bytes || 0;
+      usedBytes += bytes;
+      if (f.mime_type.startsWith('image/')) breakdown.images += bytes;
+      else if (f.mime_type.startsWith('text/') || f.mime_type.includes('pdf') || f.mime_type.includes('document')) breakdown.documents += bytes;
+      else if (f.mime_type.startsWith('video/') || f.mime_type.startsWith('audio/')) breakdown.media += bytes;
+      else if (f.mime_type.includes('zip') || f.mime_type.includes('tar') || f.mime_type.includes('compressed')) breakdown.archives += bytes;
+      else if (f.mime_type.includes('javascript') || f.mime_type.includes('json') || f.mime_type.includes('typescript')) breakdown.code += bytes;
+      else breakdown.others += bytes;
     }
-    return mockStorage.getStorageUsage(user.id);
-  }, [user, apiMode, files]);
+    return {
+      usedBytes,
+      totalBytes: 0, // 0 denotes no artificial total cap
+      breakdown,
+    };
+  }, [user, files]);
 
   // Load active folder items
   const loadFolderContent = useCallback(
@@ -223,7 +216,7 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : await api.getFolder(user.id, folderId);
         setFolders(res.children.folders || []);
         setFiles(res.children.files || []);
-        // sandbox and older servers report no role — treat that as full access
+        // an older server reports no role — treat that as full access
         setCurrentFolderRole(res.role ?? 'owner');
       } catch (err) {
         console.error('Failed loading folder content:', err);
@@ -245,7 +238,7 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       mounted = false;
     };
-  }, [user, apiMode]);
+  }, [user]);
 
   const fetchSharedWithMe = useCallback(async () => {
     if (!user) return;
@@ -679,8 +672,6 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setMoveTarget,
         isNewFolderOpen,
         setIsNewFolderOpen,
-        isSettingsOpen,
-        setIsSettingsOpen,
         isSidebarOpen,
         setIsSidebarOpen,
         toggleSidebar,

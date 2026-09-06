@@ -1,7 +1,6 @@
 import React from 'react';
 import { Users, ExternalLink, Folder as FolderIcon, RotateCw, Inbox } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
-import { useAuth } from '../../context/AuthContext';
 import { FileIcon } from '../common/FileIcon';
 import { formatBytes, formatDate } from '../../utils/formatters';
 import { SharedFile, SharedFolder } from '../../types/storage';
@@ -12,8 +11,6 @@ type SharedRow =
 
 export const SharedView: React.FC = () => {
   const {
-    folders,
-    files,
     sharedWithMe,
     sharedLoading,
     fetchSharedWithMe,
@@ -21,30 +18,11 @@ export const SharedView: React.FC = () => {
     setPreviewFile,
     setActiveTab,
   } = useStorage();
-  const { apiMode } = useAuth();
 
-  // The sandbox has a single account, so nothing can genuinely be shared into
-  // it — keep showing sample rows there so the view still demonstrates itself.
-  const rows: SharedRow[] =
-    apiMode === 'sandbox'
-      ? [
-          ...folders.slice(0, 1).map((f) => ({
-            ...f,
-            itemType: 'folder' as const,
-            role: 'editor' as const,
-            shared_by: { id: 'demo', name: 'Sarah Jenkins', email: 'sarah@example.com' },
-          })),
-          ...files.slice(0, 2).map((file) => ({
-            ...file,
-            itemType: 'file' as const,
-            role: 'viewer' as const,
-            shared_by: { id: 'demo', name: 'Engineering Team', email: 'eng@example.com' },
-          })),
-        ]
-      : [
-          ...sharedWithMe.folders.map((f) => ({ ...f, itemType: 'folder' as const })),
-          ...sharedWithMe.files.map((f) => ({ ...f, itemType: 'file' as const })),
-        ];
+  const rows: SharedRow[] = [
+    ...sharedWithMe.folders.map((f) => ({ ...f, itemType: 'folder' as const })),
+    ...sharedWithMe.files.map((f) => ({ ...f, itemType: 'file' as const })),
+  ];
 
   const openRow = (row: SharedRow) => {
     if (row.itemType === 'folder') {
@@ -71,17 +49,15 @@ export const SharedView: React.FC = () => {
           </div>
         </div>
 
-        {apiMode === 'live' && (
-          <button
-            id="shared-refresh-btn"
-            onClick={fetchSharedWithMe}
-            disabled={sharedLoading}
-            className="p-1.5 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors disabled:opacity-50 shrink-0"
-            title="Refresh shared items"
-          >
-            <RotateCw className={`w-4 h-4 ${sharedLoading ? 'animate-spin text-indigo-400' : ''}`} />
-          </button>
-        )}
+        <button
+          id="shared-refresh-btn"
+          onClick={fetchSharedWithMe}
+          disabled={sharedLoading}
+          className="p-1.5 rounded-lg hover:bg-[#1a1a1a] text-gray-400 hover:text-white transition-colors disabled:opacity-50 shrink-0"
+          title="Refresh shared items"
+        >
+          <RotateCw className={`w-4 h-4 ${sharedLoading ? 'animate-spin text-indigo-400' : ''}`} />
+        </button>
       </div>
 
       {sharedLoading && rows.length === 0 ? (

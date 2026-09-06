@@ -15,7 +15,6 @@ import { RenameModal } from '../modals/RenameModal';
 import { MoveModal } from '../modals/MoveModal';
 import { ShareModal } from '../modals/ShareModal';
 import { FilePreviewModal } from '../explorer/FilePreviewModal';
-import { ApiConfigModal } from '../modals/ApiConfigModal';
 import { useStorage } from '../../context/StorageContext';
 
 export const MainLayout: React.FC = () => {
@@ -57,7 +56,6 @@ export const MainLayout: React.FC = () => {
       <MoveModal />
       <ShareModal />
       <FilePreviewModal />
-      <ApiConfigModal />
 
       {/* Live upload feedback, floating over whichever tab is open */}
       <UploadProgressPanel />
