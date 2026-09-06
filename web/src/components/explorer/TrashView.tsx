@@ -19,6 +19,7 @@ export const TrashView: React.FC = () => {
     permanentDeleteFolder,
     permanentDeleteFile,
     emptyTrash,
+    trashRetentionDays,
   } = useStorage();
 
   const [confirmEmpty, setConfirmEmpty] = useState(false);
@@ -76,6 +77,12 @@ export const TrashView: React.FC = () => {
             <p className="text-xs text-gray-400">
               Items in trash can be restored back to your storage or permanently deleted.
             </p>
+            {trashRetentionDays !== null && (
+              <p className="text-xs text-amber-400/80 mt-0.5">
+                Anything left here is deleted automatically after {trashRetentionDays}{' '}
+                {trashRetentionDays === 1 ? 'day' : 'days'}.
+              </p>
+            )}
           </div>
         </div>
 

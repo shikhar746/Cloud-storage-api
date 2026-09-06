@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { supabase } from '../lib/supabase.js'
 import { env } from '../config/env.js'
+import { attachStarred } from '../lib/stars.js'
 import { getAccessRole } from '../lib/access.js'
 import {
   uploadFileSchema,
@@ -286,7 +287,7 @@ export async function deleteFileController(req: Request, res: Response) {
 
     const { data: file, error: fileError } = await supabase
         .from("files")
-        .update({ is_deleted: true })
+        .update({ is_deleted: true, deleted_at: new Date().toISOString() })
         .eq("id", id)
         .eq("owner_id", req.userId)
         .eq("is_deleted", false)
@@ -333,7 +334,9 @@ export async function listFileController (req: Request, res: Response){
       error: { code: "INTERNAL_ERROR", message: "Failed to list files" },
     })
   
-  return res.status(200).json({ files })
+  const { files: withStars } = await attachStarred(req.userId, [], files ?? [])
+
+  return res.status(200).json({ files: withStars })
 }
 
 export async function updateFileController(req: Request, res: Response) {
@@ -465,7 +468,7 @@ export async function restoreFileController(req: Request, res: Response){
         parentIsDeleted = !parent || parent.is_deleted
     }
 
-    const restoreUpdate: Record<string, unknown> = { is_deleted: false }
+    const restoreUpdate: Record<string, unknown> = { is_deleted: false, deleted_at: null }
     if (parentIsDeleted) restoreUpdate.folder_id = null
 
     const { data: file, error: fileError } = await supabase

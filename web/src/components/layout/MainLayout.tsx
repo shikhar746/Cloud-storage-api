@@ -6,6 +6,7 @@ import { ExplorerToolbar } from '../explorer/ExplorerToolbar';
 import { DragDropZone } from '../explorer/DragDropZone';
 import { FileExplorerView } from '../explorer/FileExplorerView';
 import { SharedView } from '../explorer/SharedView';
+import { StarredView } from '../explorer/StarredView';
 import { TrashView } from '../explorer/TrashView';
 import { ItemDetailsDrawer } from '../explorer/ItemDetailsDrawer';
 import { UploadProgressPanel } from '../explorer/UploadProgressPanel';
@@ -42,6 +43,7 @@ export const MainLayout: React.FC = () => {
           <DragDropZone>
             {activeTab === 'files' && <FileExplorerView />}
             {activeTab === 'shared' && <SharedView />}
+            {activeTab === 'starred' && <StarredView />}
             {activeTab === 'trash' && <TrashView />}
           </DragDropZone>
         </main>

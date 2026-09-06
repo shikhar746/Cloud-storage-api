@@ -26,6 +26,17 @@ function optionalNumber(name: string, fallback: number): number {
         throw new Error(`Environment variable ${name} must be a positive integer, got: ${value}`)
     return n                                        // error message was empty
 }
+// like optionalNumber, but 0 is a meaningful value ("switched off") rather
+// than an error — used by the purge interval
+function optionalCount(name: string, fallback: number): number {
+    const value = process.env[name]
+    if (value === undefined || value.trim() === '') return fallback
+    const n = Number(value)
+    if (!Number.isInteger(n) || n < 0)
+        throw new Error(`Environment variable ${name} must be a non-negative integer, got: ${value}`)
+    return n
+}
+
 // helper for cors origin (comma separated env values)
 // and return array of strings
 function optionalStringArray(name: string, fallback: string[]): string[] {
@@ -94,6 +105,17 @@ export const env = {
     // Identity Services and this API only verifies its signature against
     // Google's public certs. There is no code exchange, so no client secret.
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
+    // trash retention
+    // how long a soft-deleted item survives before the sweeper removes it and
+    // its stored blob for good
+    TRASH_RETENTION_DAYS: optionalNumber('TRASH_RETENTION_DAYS', 30),
+    // how often the in-process sweeper runs. 0 switches it off, which is what
+    // you want when an external scheduler drives the purge instead.
+    TRASH_PURGE_INTERVAL_MINUTES: optionalCount('TRASH_PURGE_INTERVAL_MINUTES', 360),
+    // shared secret for POST /api/maintenance/purge-trash. Unset disables the
+    // endpoint entirely rather than leaving it open.
+    PURGE_SECRET: optionalString('PURGE_SECRET'),
+
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),

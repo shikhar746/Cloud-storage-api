@@ -12,6 +12,8 @@ export interface Folder {
   is_deleted?: boolean;
   owner_id?: string;
   items_count?: number;
+  /** Starred by the signed-in user. Stars are per-user, not per-resource. */
+  starred?: boolean;
 }
 
 export interface FileItem {
@@ -27,6 +29,8 @@ export interface FileItem {
   is_deleted?: boolean;
   owner_id?: string;
   content?: string; // For text/markdown preview if local
+  /** Starred by the signed-in user. Stars are per-user, not per-resource. */
+  starred?: boolean;
 }
 
 export type ResourceType = 'file' | 'folder';
@@ -105,6 +109,11 @@ export interface UploadTask {
   error?: string;
 }
 
+export interface StarredResponse {
+  folders: Folder[];
+  files: FileItem[];
+}
+
 export interface TrashResponse {
   folders: Folder[];
   files: FileItem[];
@@ -116,7 +125,7 @@ export interface SearchResponse {
 }
 
 export type ViewMode = 'grid' | 'list';
-export type ActiveNavTab = 'files' | 'shared' | 'trash' | 'settings';
+export type ActiveNavTab = 'files' | 'shared' | 'starred' | 'trash' | 'settings';
 export type FileCategory = 'all' | 'image' | 'document' | 'video' | 'audio' | 'archive' | 'code';
 
 export interface SortConfig {

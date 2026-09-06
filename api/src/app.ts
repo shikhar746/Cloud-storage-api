@@ -13,6 +13,8 @@ import { errorHandler } from './middleware/errorHandler.js'
 import searchRoutes from "./routes/search.routes.js"
 import shareRoutes from './routes/share.routes.js'
 import userRoutes from './routes/user.routes.js'
+import starRoutes from './routes/star.routes.js'
+import maintenanceRoutes from './routes/maintenance.routes.js'
 
 const app = express()
 
@@ -91,6 +93,8 @@ function health(_req: Request, res: Response) {
             maxFileSizeBytes: env.MAX_FILE_SIZE_BYTES,
             maxDirectUploadBytes: env.MAX_DIRECT_UPLOAD_BYTES,
         },
+        // the web client tells the user how long trash survives
+        trashRetentionDays: env.TRASH_RETENTION_DAYS,
     })
 }
 
@@ -112,6 +116,10 @@ app.use('/api/search', searchRoutes)
 app.use('/api/shares', shareRoutes)
 
 app.use('/api/users', userRoutes)
+
+app.use('/api/stars', starRoutes)
+
+app.use('/api/maintenance', maintenanceRoutes)
 
 // ---------> Web client <--------- //
 // Serving the bundle from this origin is the point of the single-service

@@ -11,6 +11,7 @@ import {
 import { FileItem } from '../../types/storage';
 import { useStorage } from '../../context/StorageContext';
 import { FileIcon } from '../common/FileIcon';
+import { StarButton } from '../common/StarButton';
 import { formatBytes, formatDate } from '../../utils/formatters';
 
 interface FileRowProps {
@@ -86,6 +87,9 @@ export const FileRow: React.FC<FileRowProps> = ({ file }) => {
         {formatDate(file.created_at)}
       </td>
       <td className="py-3 px-4 text-right">
+        <span className="inline-flex items-center align-middle mr-1">
+          <StarButton resourceType="file" id={file.id} starred={file.starred} alwaysVisible />
+        </span>
         <div ref={menuRef} className="relative inline-block text-left">
           <button
             id={`file-row-menu-btn-${file.id}`}

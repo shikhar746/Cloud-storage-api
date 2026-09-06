@@ -7,6 +7,7 @@ import {
   TrashResponse,
   SearchResponse,
   SharedWithMeResponse,
+  StarredResponse,
   ResourceType,
   ShareRole,
   UploadLimits,
@@ -57,7 +58,7 @@ function extractErrorMessage(data: any, status: number): string {
 
 export class ApiClient {
   private refreshPromise: Promise<boolean> | null = null;
-  private limits: UploadLimits | null = null;
+  private serverInfo: { limits: UploadLimits; trashRetentionDays: number | null } | null = null;
 
   private async refreshSession(): Promise<boolean> {
     if (this.refreshPromise) {
@@ -154,7 +155,24 @@ export class ApiClient {
 
   /** Upload limits the server enforces, cached for the life of the connection. */
   async getLimits(): Promise<UploadLimits> {
-    if (this.limits) return this.limits;
+    return (await this.fetchServerInfo()).limits;
+  }
+
+  /** How long trash survives before the server purges it, or null if unreported. */
+  async getTrashRetentionDays(): Promise<number | null> {
+    return (await this.fetchServerInfo()).trashRetentionDays;
+  }
+
+  /** One cached read of /api/health, shared by every caller that needs it. */
+  private async fetchServerInfo(): Promise<{
+    limits: UploadLimits;
+    trashRetentionDays: number | null;
+  }> {
+    if (this.serverInfo) return this.serverInfo;
+
+    // an older API that reports neither: assume the documented defaults
+    let limits = FALLBACK_UPLOAD_LIMITS;
+    let trashRetentionDays: number | null = null;
 
     try {
       const res = await fetchHealth();
@@ -165,18 +183,21 @@ export class ApiClient {
           Number.isFinite(reported?.maxFileSizeBytes) &&
           Number.isFinite(reported?.maxDirectUploadBytes)
         ) {
-          this.limits = {
+          limits = {
             maxFileSizeBytes: reported.maxFileSizeBytes,
             maxDirectUploadBytes: reported.maxDirectUploadBytes,
           };
-          return this.limits;
+        }
+        if (Number.isFinite(data?.trashRetentionDays)) {
+          trashRetentionDays = data.trashRetentionDays;
         }
       }
     } catch {
-      // unreachable server — the upload itself will surface the real problem
+      // unreachable server — the operation itself will surface the real problem
     }
-    // an older API that reports no limits: assume the documented defaults
-    return FALLBACK_UPLOAD_LIMITS;
+
+    this.serverInfo = { limits, trashRetentionDays };
+    return this.serverInfo;
   }
 
   // Authentication
@@ -417,6 +438,24 @@ export class ApiClient {
   // Search
   async search(userId: string, query: string): Promise<SearchResponse> {
     return this.request<SearchResponse>(`/api/search?q=${encodeURIComponent(query)}`);
+  }
+
+  // Stars — per-user bookmarks, not a property of the resource
+  async getStarred(): Promise<StarredResponse> {
+    const res = await this.request<StarredResponse>('/api/stars');
+    return { folders: res.folders || [], files: res.files || [] };
+  }
+
+  /** Idempotent on both sides: starring twice, or unstarring nothing, is a no-op. */
+  async setStarred(resourceType: ResourceType, resourceId: string, starred: boolean): Promise<void> {
+    if (starred) {
+      await this.request('/api/stars', {
+        method: 'POST',
+        body: JSON.stringify({ resourceType, resourceId }),
+      });
+      return;
+    }
+    await this.request(`/api/stars/${resourceType}/${resourceId}`, { method: 'DELETE' });
   }
 
   // Shares

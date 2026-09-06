@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import {
   HardDrive,
   Users,
+  Star,
   Trash2,
   Plus,
   FolderPlus,
@@ -210,6 +211,29 @@ export const Sidebar: React.FC = () => {
                   ) : (
                     activeTab === 'shared' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />
                   )}
+              </button>
+
+              <button
+                id="nav-starred"
+                onClick={() => {
+                  setActiveTab('starred');
+                  handleNav();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  activeTab === 'starred'
+                    ? 'bg-indigo-600/10 text-indigo-400 font-semibold'
+                    : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Star
+                    className={`w-4 h-4 ${
+                      activeTab === 'starred' ? 'text-indigo-400' : 'text-gray-500'
+                    }`}
+                  />
+                  <span>Starred</span>
+                </div>
+                {activeTab === 'starred' && <ChevronRight className="w-3.5 h-3.5 text-indigo-400" />}
               </button>
 
               <button

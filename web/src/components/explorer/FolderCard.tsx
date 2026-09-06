@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MoreVertical, Folder as FolderIcon, Edit3, Trash2, Share2, FolderInput, ArrowRight } from 'lucide-react';
 import { Folder } from '../../types/storage';
 import { useStorage } from '../../context/StorageContext';
+import { StarButton } from '../common/StarButton';
 import { formatDate } from '../../utils/formatters';
 
 interface FolderCardProps {
@@ -91,6 +92,8 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
           </p>
         </div>
       </div>
+
+      <StarButton resourceType="folder" id={folder.id} starred={folder.starred} className="ml-auto mr-0.5" />
 
       {/* Action Menu */}
       <div ref={menuRef} className="relative shrink-0">

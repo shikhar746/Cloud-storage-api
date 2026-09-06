@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { createFolderSchema, updateFolderSchema } from "../schemas/folder.schema.js";
 import { supabase } from "../lib/supabase.js";
 import { env } from "../config/env.js"
+import { attachStarred } from '../lib/stars.js'
 import { getAccessRole } from "../lib/access.js"
 
 export async function createFolderController(req:Request, res:Response){
@@ -100,11 +101,13 @@ export async function getFolderController(req: Request, res: Response) {
         })
     }
 
+  const children = await attachStarred(req.userId, folders ?? [], files ?? [])
+
   // the caller's role here also covers the children: access to a shared folder
   // is inherited by everything inside it (see getAccessRole)
   return res.status(200).json({
     folder,
-    children: { folders, files },
+    children,
     role,
   })
 }
@@ -131,10 +134,12 @@ export async function getRootController(req: Request, res: Response){
         })
     }
 
+    const children = await attachStarred(req.userId, folders ?? [], files ?? [])
+
     // root only ever holds the caller's own items
     return res.status(200).json({
         folder: null,
-        children: {folders, files},
+        children,
         role: 'owner',
     })
 }
@@ -176,9 +181,11 @@ export async function deleteFolderController(req:Request, res:Response){
         allFolderIds.push(...currentLevel)
     }
 
+    const deletedAt = new Date().toISOString()
+
     const { error: filesUpdateError } = await supabase
         .from("files")
-        .update({ is_deleted: true })
+        .update({ is_deleted: true, deleted_at: deletedAt })
         .in("folder_id", allFolderIds)
         .eq("owner_id", req.userId)
 
@@ -191,7 +198,7 @@ export async function deleteFolderController(req:Request, res:Response){
 
     const { error: folderUpdateError } = await supabase
     .from("folders")
-    .update({ is_deleted: true })
+    .update({ is_deleted: true, deleted_at: deletedAt })
     .in("id", allFolderIds)
     .eq("owner_id", req.userId)
 
@@ -245,7 +252,7 @@ export async function restoreFolderController(req: Request, res: Response) {
         parentIsDeleted = !parent || parent.is_deleted
     }
 
-    const restoreUpdate: Record<string, unknown> = { is_deleted: false }
+    const restoreUpdate: Record<string, unknown> = { is_deleted: false, deleted_at: null }
     if (parentIsDeleted) restoreUpdate.parent_id = null
 
     const { data: folder, error: folderError } = await supabase
@@ -302,7 +309,7 @@ export async function restoreFolderController(req: Request, res: Response) {
 
     const { error: filesUpdateError } = await supabase
         .from("files")
-        .update({ is_deleted: false })
+        .update({ is_deleted: false, deleted_at: null })
         .in("folder_id", allFolderIds)
         .eq("owner_id", req.userId)
 
@@ -315,7 +322,7 @@ export async function restoreFolderController(req: Request, res: Response) {
 
     const { error: folderUpdateError } = await supabase
         .from("folders")
-        .update({ is_deleted: false })
+        .update({ is_deleted: false, deleted_at: null })
         .in("id", allFolderIds)
         .eq("owner_id", req.userId)
 

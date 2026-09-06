@@ -10,6 +10,8 @@ import {
   TrashResponse,
   SearchResponse,
   SharedWithMeResponse,
+  StarredResponse,
+  ResourceType,
   AccessRole,
   UploadTask,
   UploadEntry,
@@ -69,6 +71,15 @@ interface StorageContextType {
   moveFolder: (folderId: string, targetParentId: string | null) => Promise<void>;
 
   uploadFiles: (input: FileList | File[] | UploadEntry[], folders?: string[][]) => Promise<void>;
+
+  /** Days an item survives in trash before the server purges it; null if unreported. */
+  trashRetentionDays: number | null;
+
+  // Stars
+  starredItems: StarredResponse;
+  starredLoading: boolean;
+  fetchStarred: () => Promise<void>;
+  toggleStar: (resourceType: ResourceType, id: string, starred: boolean) => Promise<void>;
   downloadFile: (file: FileItem) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<FileItem>;
   deleteFile: (fileId: string) => Promise<void>;
@@ -235,9 +246,29 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     api.getLimits().then((l) => {
       if (mounted) setUploadLimits(l);
     });
+    api.getTrashRetentionDays().then((d) => {
+      if (mounted) setTrashRetentionDays(d);
+    });
     return () => {
       mounted = false;
     };
+  }, [user]);
+
+  const [trashRetentionDays, setTrashRetentionDays] = useState<number | null>(null);
+  const [starredItems, setStarredItems] = useState<StarredResponse>({ folders: [], files: [] });
+  const [starredLoading, setStarredLoading] = useState(false);
+
+  const fetchStarred = useCallback(async () => {
+    if (!user) return;
+    setStarredLoading(true);
+    try {
+      setStarredItems(await api.getStarred());
+    } catch (err) {
+      console.error('Failed to load starred items:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load starred items');
+    } finally {
+      setStarredLoading(false);
+    }
   }, [user]);
 
   const fetchSharedWithMe = useCallback(async () => {
@@ -297,8 +328,10 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
       fetchTrash();
     } else if (user && activeTab === 'shared') {
       fetchSharedWithMe();
+    } else if (user && activeTab === 'starred') {
+      fetchStarred();
     }
-  }, [user, currentFolderId, activeTab, loadFolderContent, fetchTrash, fetchSharedWithMe]);
+  }, [user, currentFolderId, activeTab, loadFolderContent, fetchTrash, fetchSharedWithMe, fetchStarred]);
 
   // Navigation handlers
   const navigateToFolder = async (folderId: string | null, folderName?: string) => {
@@ -399,6 +432,46 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('Not authenticated');
     await api.updateFolder(user.id, folderId, { parentId: targetParentId });
     await refreshCurrentFolder();
+  };
+
+  /**
+   * Star or unstar. Applied locally first — a star is a one-click affordance
+   * and should not wait on a round trip — then rolled back if the call fails.
+   */
+  const toggleStar = async (resourceType: ResourceType, id: string, starred: boolean) => {
+    if (!user) throw new Error('Not authenticated');
+
+    const applyLocal = (next: boolean) => {
+      if (resourceType === 'folder') {
+        setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, starred: next } : f)));
+      } else {
+        setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, starred: next } : f)));
+      }
+      setStarredItems((prev) => ({
+        folders: prev.folders.map((f) => (resourceType === 'folder' && f.id === id ? { ...f, starred: next } : f)),
+        files: prev.files.map((f) => (resourceType === 'file' && f.id === id ? { ...f, starred: next } : f)),
+      }));
+    };
+
+    // unstarring from the Starred view should remove the row, not leave a
+    // hollow star sitting in a list it no longer belongs to
+    const dropFromStarred = () =>
+      setStarredItems((prev) => ({
+        folders: prev.folders.filter((f) => !(resourceType === 'folder' && f.id === id)),
+        files: prev.files.filter((f) => !(resourceType === 'file' && f.id === id)),
+      }));
+
+    applyLocal(starred);
+    if (!starred) dropFromStarred();
+
+    try {
+      await api.setStarred(resourceType, id, starred);
+      if (starred && activeTab === 'starred') await fetchStarred();
+    } catch (err) {
+      applyLocal(!starred);
+      if (!starred) await fetchStarred();
+      setError(err instanceof Error ? err.message : 'Could not update the star');
+    }
   };
 
   const clearFinishedUploads = useCallback(() => {
@@ -652,6 +725,11 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         permanentDeleteFolder,
         moveFolder,
         uploadFiles,
+        trashRetentionDays,
+        starredItems,
+        starredLoading,
+        fetchStarred,
+        toggleStar,
         downloadFile,
         renameFile,
         deleteFile,

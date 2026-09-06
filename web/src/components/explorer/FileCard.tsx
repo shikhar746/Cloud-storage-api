@@ -11,6 +11,7 @@ import {
 import { FileItem } from '../../types/storage';
 import { useStorage } from '../../context/StorageContext';
 import { FileIcon } from '../common/FileIcon';
+import { StarButton } from '../common/StarButton';
 import { formatBytes, formatDate } from '../../utils/formatters';
 
 interface FileCardProps {
@@ -113,6 +114,8 @@ export const FileCard: React.FC<FileCardProps> = ({ file }) => {
             <span>{formatDate(file.created_at)}</span>
           </div>
         </div>
+
+        <StarButton resourceType="file" id={file.id} starred={file.starred} />
 
         {/* 3 dots menu */}
         <div ref={menuRef} className="relative shrink-0">
