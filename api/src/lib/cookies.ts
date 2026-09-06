@@ -19,6 +19,9 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
 }
 
 export function clearAuthCookies(res: Response) {
-  res.clearCookie("accessToken", { path: "/" })
-  res.clearCookie("refreshToken", { path: "/api/auth/refresh" })
+  // a browser only drops a cookie when the clearing Set-Cookie repeats the
+  // attributes it was written with — miss secure/sameSite in production and
+  // logout leaves the session cookie alive
+  res.clearCookie("accessToken", { ...base, path: "/" })
+  res.clearCookie("refreshToken", { ...base, path: "/api/auth/refresh" })
 }

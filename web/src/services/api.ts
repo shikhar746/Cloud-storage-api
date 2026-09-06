@@ -17,8 +17,18 @@ import { mockStorage } from './mockStorage';
 const BASE_URL_STORAGE_KEY = 'csa_api_base_url';
 const API_MODE_STORAGE_KEY = 'csa_api_mode'; // 'live' | 'sandbox'
 
-const DEFAULT_API_BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:8080';
+/**
+ * Where the API lives. Set VITE_API_URL at build time (Vercel: Project >
+ * Settings > Environment Variables) — Vite inlines it into the bundle, so a
+ * change there needs a redeploy, not just a page reload. VITE_API_BASE_URL is
+ * accepted as an older alias. A trailing slash is stripped because every
+ * request appends its own leading-slash path.
+ */
+const DEFAULT_API_BASE_URL = (
+  (typeof import.meta !== 'undefined' &&
+    (import.meta.env?.VITE_API_URL || import.meta.env?.VITE_API_BASE_URL)) ||
+  'http://localhost:8080'
+).replace(/\/+$/, '');
 const DEFAULT_API_MODE =
   ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_MODE) as 'live' | 'sandbox') || 'live';
 
