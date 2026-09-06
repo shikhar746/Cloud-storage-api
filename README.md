@@ -8,7 +8,7 @@
 | **Repository** | https://github.com/shikhar746/Cloud-storage-api |
 | **Author** | Shikhar Srivastava |
 
-[SCREENSHOT: /*The main file explorer — sidebar, breadcrumbs, folder and file grid, fully loaded. This is the hero image for the whole project*/]
+
 
 ---
 
@@ -153,9 +153,6 @@ Completion is deliberately suspicious of the client: the key must carry the call
 
 The traversal handles both, caps depth at 32 so cyclic trees terminate, and records empty directories so they are recreated too. Folder paths resolve to IDs before any file is sent, cached so a hundred files in one folder create it once; an existing folder of the same name is **adopted** rather than treated as a failure.
 
-[SCREENSHOT: /*The drag-and-drop overlay mid-drag, showing "Drop files or folders to upload"*/]
-
-[SCREENSHOT: /*The explorer just after dropping a folder — new folder created, progress panel listing nested paths like "MyFolder/nested/file.txt"*/]
 
 ### 3.7 Starred items
 
@@ -194,9 +191,7 @@ A share modal resolves an email to a user and assigns `viewer` or `editor`. Ever
 
 Inheritance is what makes sharing feel natural: granting access to a folder covers everything beneath it, at any depth, including files added later. User lookup is exact-match only and returns just `id`, `email`, `name`, so it cannot enumerate the user base.
 
-[SCREENSHOT: /*The Share modal with an email entered, role dropdown, and existing shares listed*/]
 
-[SCREENSHOT: /*The "Shared with me" view listing items another account shared*/]
 
 ### 3.10 Trash with scheduled auto-purge
 
@@ -359,7 +354,7 @@ Environment loading fails fast and **collects** every missing variable into one 
 
 Each line exists because a specific misconfiguration was once hard to diagnose.
 
-[SCREENSHOT: /*Render deployment logs showing a successful boot with all diagnostic lines*/]
+
 
 ---
 
@@ -387,7 +382,7 @@ PostgreSQL via Supabase, with ordered hand-written migrations in `api/infra/migr
 
 > **Known gap:** if a client gets a signed URL, uploads, and never calls `complete` — closed tab, dropped connection — the pending row and its blob remain. A sweeper is anticipated but **not implemented**. See [§16](#16-future-improvements).
 
-[SCREENSHOT: /*An entity-relationship diagram of the seven tables*/]
+
 
 ---
 
