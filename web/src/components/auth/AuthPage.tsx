@@ -143,7 +143,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
           <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3">
             {mode === 'register' && (
               <div>
-                <label className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1">
+                <label
+                  htmlFor="auth-input-name"
+                  className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1"
+                >
                   Full Name
                 </label>
                 <div className="relative">
@@ -153,6 +156,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
                   <input
                     id="auth-input-name"
                     type="text"
+                    autoComplete="name"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -164,7 +168,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
             )}
 
             <div>
-              <label className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1">
+              <label
+                htmlFor="auth-input-email"
+                className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1"
+              >
                 Email Address
               </label>
               <div className="relative">
@@ -174,6 +181,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
                 <input
                   id="auth-input-email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -184,7 +192,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
             </div>
 
             <div>
-              <label className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1">
+              <label
+                htmlFor="auth-input-password"
+                className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-300 mb-1"
+              >
                 Password
               </label>
               <div className="relative">
@@ -194,6 +205,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onOpenSettings }) => {
                 <input
                   id="auth-input-password"
                   type="password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

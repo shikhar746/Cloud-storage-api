@@ -74,9 +74,15 @@ export const env = {
     // comma-separated list of browser origins allowed to call this API with
     // credentials. Entries may use "*" as a wildcard segment so one line can
     // cover every Vercel preview deploy, e.g. https://*.vercel.app
+    // The deployed frontend is listed by exact origin rather than a
+    // "https://*.vercel.app" wildcard: this API sends credentials, and that
+    // wildcard would let any site on vercel.app call it with the user's
+    // cookies. Add preview URLs by setting CORS_ORIGIN, which replaces this
+    // list entirely.
     CORS_ORIGIN: optionalStringArray('CORS_ORIGIN', [
         'http://localhost:5173',
         'http://localhost:3000',
+        'https://cloud-storage-api-six.vercel.app',
     ]).map(normalizeOrigin),
     // auth
     JWT_SECRET: required('JWT_SECRET'),
