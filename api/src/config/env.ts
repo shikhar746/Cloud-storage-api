@@ -1,11 +1,18 @@
 import 'dotenv/config'
 
-// required (name) helper 
-// throws if the values is missing
+// Missing required vars are collected instead of thrown one at a time, so a
+// failed deploy reports every gap in a single log line rather than making you
+// redeploy once per variable.
+const missing: string[] = []
+
+// required (name) helper
+// records the name if the value is missing; the collected list is thrown below
 function required(name: string): string {
     const value = process.env[name]
-    if (!value)
-        throw new Error(`Missing required environment variable: ${name}`)
+    if (!value) {
+        missing.push(name)
+        return ''
+    }
     return value
 }
 
@@ -54,11 +61,23 @@ function optionalDuration(name: string, fallback: string): { raw: string; ms: nu
     return { raw, ms: Number(amount) * DURATION_UNIT_MS[unit]! }
 }
 
+// trailing slashes on a pasted dashboard value would turn every allowed origin
+// into one the browser never sends, so they are stripped here once
+function normalizeOrigin(origin: string): string {
+    return origin.replace(/\/+$/, '')
+}
+
 export const env = {
     // server
     PORT: optionalNumber('PORT', 8080),
     NODE_ENV: process.env.NODE_ENV ?? 'development',
-    CORS_ORIGIN: optionalStringArray('CORS_ORIGIN', ['http://localhost:3000']),
+    // comma-separated list of browser origins allowed to call this API with
+    // credentials. Entries may use "*" as a wildcard segment so one line can
+    // cover every Vercel preview deploy, e.g. https://*.vercel.app
+    CORS_ORIGIN: optionalStringArray('CORS_ORIGIN', [
+        'http://localhost:5173',
+        'http://localhost:3000',
+    ]).map(normalizeOrigin),
     // auth
     JWT_SECRET: required('JWT_SECRET'),
     REFRESH_SECRET: required('REFRESH_SECRET'),
@@ -80,3 +99,10 @@ export const env = {
     // file size limit, or the signed upload is rejected by storage instead
     MAX_DIRECT_UPLOAD_BYTES: optionalNumber('MAX_DIRECT_UPLOAD_BYTES', 5_368_709_120),
 } as const
+
+if (missing.length > 0) {
+    throw new Error(
+        `Missing required environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}. ` +
+        `Set ${missing.length > 1 ? 'them' : 'it'} in the host's environment (Render: Settings > Environment) or in api/.env locally.`
+    )
+}
