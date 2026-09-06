@@ -7,5 +7,7 @@ app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[api] listening on port ${env.PORT} (${env.NODE_ENV})`)
     console.log(`[api] web bundle: ${webBundle ? `serving ${webBundle}` : 'not built (API only)'}`)
     console.log(`[api] allowed origins: ${env.CORS_ORIGIN.join(', ')}`)
-    console.log(`[api] google sign-in: ${env.GOOGLE_CLIENT_ID ? 'enabled' : 'disabled (GOOGLE_CLIENT_ID unset)'}`)
+    // the id is public — it ships in the web bundle — and printing it is the
+    // quickest way to catch the two sides pointing at different OAuth clients
+    console.log(`[api] google sign-in: ${env.GOOGLE_CLIENT_ID ? `enabled (${env.GOOGLE_CLIENT_ID})` : 'disabled (GOOGLE_CLIENT_ID unset)'}`)
 })

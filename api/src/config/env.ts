@@ -89,9 +89,11 @@ export const env = {
     REFRESH_SECRET: required('REFRESH_SECRET'),
     ACCESS_TOKEN_TTL: optionalDuration('ACCESS_TOKEN_TTL', '15m'),
     REFRESH_TOKEN_TTL: optionalDuration('REFRESH_TOKEN_TTL', '7d'),
-    // google sign-in (optional — POST /api/auth/google is disabled without it)
+    // Google sign-in (optional — POST /api/auth/google is disabled without it).
+    // Only the client id is needed: the browser gets the ID token from Google
+    // Identity Services and this API only verifies its signature against
+    // Google's public certs. There is no code exchange, so no client secret.
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
-    GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     // supabase
     SUPABASE_URL: required('SUPABASE_URL'),
     SUPABASE_SERVICE_ROLE_KEY: required('SUPABASE_SERVICE_ROLE_KEY'),
