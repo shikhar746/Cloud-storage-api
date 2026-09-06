@@ -6,7 +6,7 @@
 | --- | --- |
 | **Live application** | https://cloud-storage-api-hquw.onrender.com |
 | **Repository** | https://github.com/shikhar746/Cloud-storage-api |
-| **Author** | /*your name goes here*/ |
+| **Author** | Shikhar Srivastava |
 
 [SCREENSHOT: /*The main file explorer — sidebar, breadcrumbs, folder and file grid, fully loaded. This is the hero image for the whole project*/]
 
