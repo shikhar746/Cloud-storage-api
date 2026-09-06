@@ -87,6 +87,13 @@ export interface UploadLimits {
 
 export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error';
 
+/** A file queued for upload, with the folder chain it should land in. */
+export interface UploadEntry {
+  file: File;
+  /** Folder names below the drop target; empty for a loose file. */
+  path: string[];
+}
+
 export interface UploadTask {
   id: string;
   name: string;

@@ -12,8 +12,10 @@ import {
   SharedWithMeResponse,
   AccessRole,
   UploadTask,
+  UploadEntry,
   UploadLimits,
 } from '../types/storage';
+import { relativeFolderPath } from '../utils/dropEntries';
 import { api, FALLBACK_UPLOAD_LIMITS } from '../services/api';
 import { mockStorage } from '../services/mockStorage';
 import { useAuth } from './AuthContext';
@@ -67,7 +69,7 @@ interface StorageContextType {
   permanentDeleteFolder: (folderId: string) => Promise<void>;
   moveFolder: (folderId: string, targetParentId: string | null) => Promise<void>;
 
-  uploadFiles: (fileList: FileList | File[]) => Promise<void>;
+  uploadFiles: (input: FileList | File[] | UploadEntry[], folders?: string[][]) => Promise<void>;
   downloadFile: (file: FileItem) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<FileItem>;
   deleteFile: (fileId: string) => Promise<void>;
@@ -410,11 +412,18 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setUploads((prev) => prev.filter((u) => u.status === 'pending' || u.status === 'uploading'));
   }, []);
 
-  const uploadFiles = async (fileList: FileList | File[]) => {
+  const uploadFiles = async (
+    input: FileList | File[] | UploadEntry[],
+    folders: string[][] = []
+  ) => {
     if (!user) throw new Error('Not authenticated');
 
-    const list = Array.from(fileList);
-    if (list.length === 0) return;
+    // A drop carries folder paths; the file inputs hand over a bare list. Both
+    // land here, so normalise before anything else looks at them.
+    const list: UploadEntry[] = Array.from(input as ArrayLike<File | UploadEntry>).map((item) =>
+      item instanceof File ? { file: item, path: relativeFolderPath(item) } : item
+    );
+    if (list.length === 0 && folders.length === 0) return;
 
     // the thresholds come from the server, so raising MAX_FILE_SIZE_BYTES there
     // is enough — the browser does not need a matching constant
@@ -426,9 +435,10 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ? crypto.randomUUID()
         : `up_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-    const tasks: UploadTask[] = list.map((file) => ({
+    const tasks: UploadTask[] = list.map(({ file, path }) => ({
       id: newId(),
-      name: file.name,
+      // a nested file is only identifiable by its path in the progress panel
+      name: path.length > 0 ? [...path, file.name].join('/') : file.name,
       size: file.size,
       loaded: 0,
       status: 'pending',
@@ -445,9 +455,48 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const failures: string[] = [];
 
+    // A dropped folder has to exist server-side before anything can go into
+    // it. Cached by path, so a hundred files in one folder create it once, and
+    // a name already taken is adopted rather than counted as a failure.
+    const folderIds = new Map<string, string | null>([['', currentFolderId]]);
+
+    const findChildFolder = async (parentId: string | null, name: string) => {
+      const res = parentId ? await api.getFolder(user.id, parentId) : await api.getRoot(user.id);
+      return res.children.folders.find((f) => f.name === name)?.id ?? null;
+    };
+
+    const ensureFolder = async (path: string[]): Promise<string | null> => {
+      const key = path.join('/');
+      const cached = folderIds.get(key);
+      if (cached !== undefined) return cached;
+
+      const parentId = await ensureFolder(path.slice(0, -1));
+      const name = path[path.length - 1];
+      let id: string;
+      try {
+        id = (await api.createFolder(user.id, name, parentId)).id;
+      } catch (err) {
+        // 409 FOLDER_EXISTS — upload into the folder that is already there
+        const existing = await findChildFolder(parentId, name);
+        if (!existing) throw err;
+        id = existing;
+      }
+      folderIds.set(key, id);
+      return id;
+    };
+
     try {
+      // up front, so a dropped folder with nothing in it still survives
+      for (const dir of folders) {
+        try {
+          await ensureFolder(dir);
+        } catch (err: any) {
+          failures.push(`folder "${dir.join('/')}": ${err?.message || 'could not be created'}`);
+        }
+      }
+
       for (let i = 0; i < list.length; i++) {
-        const file = list[i];
+        const { file, path } = list[i];
         const task = tasks[i];
 
         if (file.size > limits.maxDirectUploadBytes) {
@@ -457,15 +506,25 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
           continue;
         }
 
+        let targetFolderId: string | null;
+        try {
+          targetFolderId = await ensureFolder(path);
+        } catch (err: any) {
+          const message = err?.message || 'its folder could not be created';
+          patch(task.id, { status: 'error', error: message });
+          failures.push(`"${task.name}": ${message}`);
+          continue;
+        }
+
         patch(task.id, { status: 'uploading' });
         const onProgress = (loaded: number) => patch(task.id, { loaded });
 
         try {
           if (task.method === 'direct') {
             // too big for the API to buffer — straight to storage, then register
-            await api.uploadFileDirect(user.id, file, currentFolderId, onProgress);
+            await api.uploadFileDirect(user.id, file, targetFolderId, onProgress);
           } else {
-            await api.uploadFile(user.id, file, currentFolderId, onProgress);
+            await api.uploadFile(user.id, file, targetFolderId, onProgress);
           }
           patch(task.id, { status: 'done', loaded: file.size });
         } catch (err: any) {
@@ -475,11 +534,16 @@ export const StorageProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
-      // only the file list can have changed, so skip refetching the folder tree
-      try {
-        setFiles(await api.listFiles(user.id, currentFolderId));
-      } catch {
+      // a plain file drop only changes the file list, but anything that
+      // created a folder changed the tree and needs the full refresh
+      if (folderIds.size > 1) {
         await refreshCurrentFolder();
+      } else {
+        try {
+          setFiles(await api.listFiles(user.id, currentFolderId));
+        } catch {
+          await refreshCurrentFolder();
+        }
       }
 
       if (failures.length > 0) {

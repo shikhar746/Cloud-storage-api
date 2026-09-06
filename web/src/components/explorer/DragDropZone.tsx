@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { useStorage } from '../../context/StorageContext';
+import { collectDroppedEntries } from '../../utils/dropEntries';
 
 interface DragDropZoneProps {
   children: React.ReactNode;
@@ -34,13 +35,17 @@ export const DragDropZone: React.FC<DragDropZoneProps> = ({ children }) => {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (!canEdit) return;
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      uploadFiles(e.dataTransfer.files);
-    }
+
+    // dataTransfer.files cannot see inside a dropped folder, so the entries are
+    // walked instead. collectDroppedEntries reads the DataTransfer up front:
+    // the browser neuters it the moment this handler returns.
+    const { entries, dirs } = await collectDroppedEntries(e.dataTransfer);
+    if (entries.length === 0 && dirs.length === 0) return;
+    await uploadFiles(entries, dirs);
   };
 
   return (
@@ -62,10 +67,11 @@ export const DragDropZone: React.FC<DragDropZoneProps> = ({ children }) => {
           <div className="w-16 h-16 rounded-full bg-indigo-950/60 border border-indigo-500/40 flex items-center justify-center mb-4">
             <UploadCloud className="w-8 h-8 text-indigo-400 animate-bounce" />
           </div>
-          <h3 className="text-xl font-bold">Drop files to upload</h3>
+          <h3 className="text-xl font-bold">Drop files or folders to upload</h3>
           <p className="text-sm text-gray-400 mt-1">
             Uploading into <span className="font-semibold text-white">"{currentName}"</span>
           </p>
+          <p className="text-xs text-gray-500 mt-1">Folders keep their structure</p>
         </div>
       )}
     </div>
