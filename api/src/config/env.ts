@@ -105,6 +105,12 @@ export const env = {
     // Identity Services and this API only verifies its signature against
     // Google's public certs. There is no code exchange, so no client secret.
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
+    // rate limiting
+    // window and ceiling for the guessing-prone endpoints: sign-in,
+    // registration, and opening a password-protected share link
+    RATE_LIMIT_WINDOW_MINUTES: optionalNumber('RATE_LIMIT_WINDOW_MINUTES', 15),
+    RATE_LIMIT_MAX: optionalNumber('RATE_LIMIT_MAX', 10),
+
     // trash retention
     // how long a soft-deleted item survives before the sweeper removes it and
     // its stored blob for good

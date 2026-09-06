@@ -1263,6 +1263,13 @@ The least tangible but most valuable outcome: knowing which trade-offs were made
 - Access and refresh tokens are signed with **independent secrets**, so compromise of one does not yield the other.
 - Logout clears cookies with matching attributes, so they are genuinely dropped.
 
+**Rate limiting**
+- Sign-in, registration, and the Google exchange are capped per IP over a rolling window (`express-rate-limit`), as are the public share-link endpoints, where a short password sits behind a bearer token.
+- Only *failed* requests count. Signing in correctly ten times is not an attack, and counting it would lock out the legitimate case while barely slowing the brute-force one.
+- `POST /api/auth/refresh` is deliberately exempt: the client calls it on every page load, and forging one requires the signing secret, so it is not a guessing target.
+- Counting is per client IP, which is trustworthy only because `trust proxy` is set to `1` rather than `true` — the permissive setting would let anyone spoof `X-Forwarded-For` and bypass the limit entirely.
+- The store is in-memory, so counters are per process and reset on deploy. Adequate for a single instance; scaling to several would need a shared store (Redis) to stay accurate.
+
 **Authorization**
 - Every protected operation resolves the caller's role through `getAccessRole` before acting.
 - Mutations require `owner` or `editor`; reads accept any non-null role.
@@ -1307,7 +1314,6 @@ Clearly distinguished from the above — these are **absent**, not partial:
 
 | Gap | Risk |
 | --- | --- |
-| **Rate limiting** | Login and registration accept unlimited attempts; brute-force is not throttled |
 | **CSRF tokens** | Mitigated in practice by `SameSite` and a JSON-only API, but no explicit token exists |
 | **Email verification for password accounts** | Only Google-sourced addresses are verified |
 | **Password reset** | No recovery flow |
@@ -1430,7 +1436,6 @@ Google accounts with no password (bcrypt on a null hash); duplicate folder names
 | **Fix the silent search cap** | Return a total count, or paginate — currently results beyond 50 are unreachable with no indication |
 | **Implement the `pending_uploads` sweeper** | Abandoned uploads leak storage indefinitely; the ledger already exists and is anticipated by the migration |
 | **Lower the multipart threshold** | Reduces per-upload memory and raises the safe concurrency ceiling substantially |
-| **Rate limiting on auth endpoints** | Brute-force is currently unthrottled |
 | **Security headers** | CSP, HSTS, `X-Frame-Options` |
 | **Populate the `checksum` column** | Column exists but is unused; would enable integrity verification and deduplication |
 

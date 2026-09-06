@@ -3,6 +3,7 @@ import { Link2, Copy, Check, Trash2, Lock, Clock, AlertCircle } from 'lucide-rea
 import { api, API_BASE_URL } from '../../services/api';
 import { ResourceType, ShareLink } from '../../types/storage';
 import { formatDate } from '../../utils/formatters';
+import { PasswordInput } from '../common/PasswordInput';
 
 interface PublicLinkSectionProps {
   resourceType: ResourceType;
@@ -136,13 +137,13 @@ export const PublicLinkSection: React.FC<PublicLinkSectionProps> = ({
           ))}
         </select>
 
-        <input
+        <PasswordInput
           id="public-link-password"
-          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password (optional, min 4)"
-          className="flex-1 rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          wrapperClassName="flex-1"
+          className="w-full rounded-xl border border-[#262626] bg-[#161616] py-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
 
         <button

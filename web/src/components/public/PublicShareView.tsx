@@ -16,6 +16,7 @@ import {
   getPublicFile,
 } from '../../services/api';
 import { FileIcon } from '../common/FileIcon';
+import { PasswordInput } from '../common/PasswordInput';
 import { formatBytes, formatDate } from '../../utils/formatters';
 import {
   FileItem,
@@ -187,14 +188,14 @@ export const PublicShareView: React.FC<PublicShareViewProps> = ({ token }) => {
           </div>
         )}
 
-        <input
+        <PasswordInput
           id="public-share-password"
-          type="password"
           autoFocus
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="w-full rounded-xl border border-[#262626] bg-[#161616] px-3.5 py-2.5 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="w-full rounded-xl border border-[#262626] bg-[#161616] py-2.5 text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <button
           type="submit"

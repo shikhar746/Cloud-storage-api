@@ -5,6 +5,7 @@ import {
   browsePublicShareController,
   publicFileController,
 } from '../controllers/publicShare.controller.js'
+import { publicShareLimiter } from '../middleware/rateLimit.js'
 
 const router = express.Router()
 
@@ -16,12 +17,12 @@ const router = express.Router()
 router.get('/:token', getPublicShareController)
 
 // open it: a signed URL for a file, or a listing for a folder
-router.post('/:token/access', accessPublicShareController)
+router.post('/:token/access', publicShareLimiter, accessPublicShareController)
 
 // walk into a subfolder of a shared folder
-router.post('/:token/folder/:folderId', browsePublicShareController)
+router.post('/:token/folder/:folderId', publicShareLimiter, browsePublicShareController)
 
 // download one file reached through the link
-router.post('/:token/file/:fileId', publicFileController)
+router.post('/:token/file/:fileId', publicShareLimiter, publicFileController)
 
 export default router

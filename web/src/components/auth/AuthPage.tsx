@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Cloud, Lock, Mail, User, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import { PasswordInput } from '../common/PasswordInput';
 
 export const AuthPage: React.FC = () => {
   const { login, register, loginWithGoogle } = useAuth();
@@ -194,21 +195,16 @@ export const AuthPage: React.FC = () => {
               >
                 Password
               </label>
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
-                </div>
-                <input
-                  id="auth-input-password"
-                  type="password"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="block w-full rounded-xl border border-[#262626] bg-[#161616] pl-9 pr-3 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <PasswordInput
+                id="auth-input-password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                leftIcon={<Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />}
+                className="block w-full rounded-xl border border-[#262626] bg-[#161616] py-1.5 sm:py-2 text-xs sm:text-sm text-gray-100 placeholder:text-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
             </div>
 
             <button
